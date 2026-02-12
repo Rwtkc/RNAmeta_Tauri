@@ -1,0 +1,9 @@
+# 1. 核心优化：禁止 Tauri 开发引擎扫描巨大的 R 语言环境
+# 即使你在 tauri.conf.json 里配置了它作为资源，但在开发时我们不需要 Watcher 去监控它的变化
+src-tauri/resources/r-lang/
+
+# 2. 忽略 Rust 编译目录，防止递归扫描
+src-tauri/target/
+
+# 3. 忽略前端构建产物
+dist/

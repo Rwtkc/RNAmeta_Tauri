@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>RiboMeta</title>
+
+    <style>
+      body,
+      html {
+        margin: 0;
+        padding: 0;
+        height: 100%;
+        width: 100%;
+        background-color: #f9fafb;
+      }
+
+      #app-loader {
+        position: fixed;
+        inset: 0;
+        z-index: 9999;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        background-color: #f9fafb;
+        font-family: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
+      }
+
+      .loader-icon-box {
+        padding: 20px;
+        background-color: rgba(5, 150, 105, 0.1);
+        border-radius: 16px;
+        border: 2px solid rgba(5, 150, 105, 0.2);
+        margin-bottom: 24px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .loader-text {
+        font-size: 24px;
+        font-weight: 700;
+        font-style: italic;
+        color: #111827;
+        margin-bottom: 8px;
+      }
+
+      .loader-sub {
+        font-size: 10px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.3em;
+        color: #6b7280;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .pulse-dot {
+        width: 6px;
+        height: 6px;
+        background-color: #10b981;
+        border-radius: 50%;
+        animation: pulse 2s infinite;
+      }
+
+      @keyframes pulse {
+        0% {
+          opacity: 1;
+        }
+        50% {
+          opacity: 0.5;
+        }
+        100% {
+          opacity: 1;
+        }
+      }
+
+      .icon-svg {
+        width: 48px;
+        height: 48px;
+        color: #059669;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root">
+      <div id="app-loader">
+        <div class="loader-icon-box">
+          <svg
+            class="icon-svg"
+            xmlns="http://www.w3.org/2000/svg"
+            width="24"
+            height="24"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
+          </svg>
+        </div>
+        <div class="loader-text">RiboMeta Engine</div>
+        <div class="loader-sub">
+          <div class="pulse-dot"></div>
+          System Initializing...
+        </div>
+      </div>
+    </div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
