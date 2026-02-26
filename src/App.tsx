@@ -6,6 +6,7 @@ import { PsiteModule } from '@/modules/Psite/PsiteModule';
 import { QCModule } from '@/modules/QC/QCModule'; 
 import { CodonModule } from '@/modules/Codon/CodonModule'; // 新增：导入 Codon 模块
 import { AboutModule } from '@/modules/About/AboutModule'; // 新增：导入 About 模块
+import { MetaViewModule } from '@/modules/MetaView/MetaViewModule';
 import { LoadingScreen } from '@/components/shared/LoadingScreen'; 
 import { AnimatePresence, motion } from 'framer-motion';
 
@@ -55,6 +56,7 @@ function App() {
               {currentModule === 'Codon' && <CodonModule />}
 
               {/* 5. 关于模块：软件介绍与帮助文档 (新增集成) */}
+              {currentModule === 'MetaView' && <MetaViewModule />}
               {currentModule === 'About' && <AboutModule />}
 
               {/* 6. 结果浏览器模块占位 */}

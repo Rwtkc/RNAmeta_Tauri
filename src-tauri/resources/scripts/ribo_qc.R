@@ -111,7 +111,7 @@ invisible(gc())
 
 # 3. Data Integration & P-site Mapping
 cat("[PROGRESS] 30% | Merging reference and read datasets...\n")
-tx_info_slim <- txlens[, .(transcript_id = tx_name, utr5_len, cds_len, utr3_len)]
+tx_info_slim <- txlens[, .(transcript_id = tx_name, tx_len, utr5_len, cds_len, utr3_len)]
 setnames(reads, "seqnames", "transcript_id")
 reads <- merge(reads[strand == '+'], tx_info_slim, by = 'transcript_id')
 

@@ -1,6 +1,13 @@
 // src/layout/MainLayout.tsx
 import React, { ReactNode, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { Icon } from '@iconify/react';
+import tuneVariant from '@iconify-icons/mdi/tune-variant';
+import crosshairsGps from '@iconify-icons/mdi/crosshairs-gps';
+import chartBoxOutline from '@iconify-icons/mdi/chart-box-outline';
+import dna from '@iconify-icons/mdi/dna';
+import chartTimelineVariantShimmer from '@iconify-icons/mdi/chart-timeline-variant-shimmer';
+import helpCircleOutline from '@iconify-icons/mdi/help-circle-outline';
 import { useLogStore } from '@/store/useLogStore';
 import { useConfigStore } from '@/store/useConfigStore'; 
 import { exists } from '@tauri-apps/plugin-fs'; 
@@ -8,8 +15,8 @@ import { ask } from '@tauri-apps/plugin-dialog';
 import { join } from '@tauri-apps/api/path'; 
 import { 
   Terminal, ChevronUp, ChevronDown, LayoutGrid, 
-  Activity, Settings, BarChart2, Database,
-  XCircle, Info
+  Activity,
+  XCircle
 } from 'lucide-react';
 import { abortAnalysis } from '@/hooks/useRAnalysis';
 
@@ -123,13 +130,14 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, activeModule, 
           </div>
         </div>
         <nav className="flex-1 py-4 space-y-0.5">
-          <NavItem active={activeModule === 'Setup'} label="Project Configuration" icon={<Settings size={16} />} onClick={() => onModuleChange('Setup')} />
-          <NavItem active={activeModule === 'Psite'} label="P-site" icon={<Activity size={16} />} onClick={() => onModuleChange('Psite')} />
-          <NavItem active={activeModule === 'QC'} label="Quality Control" icon={<BarChart2 size={16} />} onClick={() => onModuleChange('QC')} />
-          <NavItem active={activeModule === 'Codon'} label="Codon" icon={<Database size={16} />} onClick={() => onModuleChange('Codon')} />
+          <NavItem active={activeModule === 'Setup'} label="Project Configuration" icon={<Icon icon={tuneVariant} width={16} height={16} />} onClick={() => onModuleChange('Setup')} />
+          <NavItem active={activeModule === 'Psite'} label="P-site" icon={<Icon icon={crosshairsGps} width={16} height={16} />} onClick={() => onModuleChange('Psite')} />
+          <NavItem active={activeModule === 'QC'} label="Quality Control" icon={<Icon icon={chartBoxOutline} width={16} height={16} />} onClick={() => onModuleChange('QC')} />
+          <NavItem active={activeModule === 'Codon'} label="Codon" icon={<Icon icon={dna} width={16} height={16} />} onClick={() => onModuleChange('Codon')} />
+          <NavItem active={activeModule === 'MetaView'} label="MetaView" icon={<Icon icon={chartTimelineVariantShimmer} width={16} height={16} />} onClick={() => onModuleChange('MetaView')} />
           
           <div className="my-2 border-t border-app-border/30 mx-6" />
-          <NavItem active={activeModule === 'About'} label="About & Help" icon={<Info size={16} />} onClick={() => onModuleChange('About')} />
+          <NavItem active={activeModule === 'About'} label="About & Help" icon={<Icon icon={helpCircleOutline} width={16} height={16} />} onClick={() => onModuleChange('About')} />
         </nav>
         <div className="p-6 border-t border-app-border flex items-center justify-between">
           <div className="flex items-center gap-2 text-[9px] font-bold text-slate-500 uppercase tracking-widest">

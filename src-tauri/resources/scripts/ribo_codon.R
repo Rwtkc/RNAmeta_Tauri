@@ -110,33 +110,33 @@ if (!file.exists(COVERAGE_FILE)) {
     stop(paste("[ERROR] Offsets file not found:", OFFSETS_FILE))
   }
   cat("[PROGRESS] 30% | Coverage file missing. Generating from BAM...\n")
-  
+
   param <- ScanBamParam(flag = scanBamFlag(), simpleCigar = FALSE, reverseComplement = FALSE, what = c("qname"))
   reads <- as.data.table(readGAlignments(BAM_FILE, index = paste0(BAM_FILE, ".bai"), param = param))
   reads[, match_len := cigarWidthAlongQuerySpace(cigar, after.soft.clipping = TRUE)]
   reads[, freq := as.numeric(sub("^.*_x", "", qname))]
-  
+
   if (SPECIES_NAME %in% c("bta.ARS-UCD1.2", "clu.ROS_Cfam_1.0", "gga.GRCg7b", "ggo.gorGor4", "mml.Mmul_10", "ptr.Pan_tro_3.0", "Sars_cov_2", "ssc.Sscrofa11.1", "xtr.UCB_Xtro_10.0")) {
     reads[, seqnames := gsub("\\.\\d+$", "", seqnames, perl = TRUE)]
   }
-  
+
   offsets_table <- read.table(OFFSETS_FILE, header = TRUE)
   offset_list <- offsets_table$p_offset + 3
   names(offset_list) <- offsets_table$length
-  
-  tx_info_slim <- txlens[, .(transcript_id = tx_name, utr5_len, cds_len, utr3_len)]
+
+  tx_info_slim <- txlens[, .(transcript_id = tx_name, tx_len, utr5_len, cds_len, utr3_len)]
   setnames(reads, "seqnames", "transcript_id")
   reads <- merge(reads[strand == '+'], tx_info_slim, by = 'transcript_id')
   reads <- set_offset_optimized(reads, offset_list, SPECIES_NAME)
-  
+
   coverage_table <- reads[, .(coverage = sum(freq)), by = .(transcript_id, transcript_coordinate, strand)]
   coverage_table <- merge(coverage_table, tx_info_slim, by = "transcript_id")
   coverage_table[, `:=`(
-    start_pos = utr5_len + 1L + tss_extension, 
+    start_pos = utr5_len + 1L + tss_extension,
     stop_pos  = utr5_len + cds_len + tss_extension
   )]
   coverage_table[, `:=`(
-    site_from_start = transcript_coordinate - start_pos - 3, 
+    site_from_start = transcript_coordinate - start_pos - 3,
     site_from_stop  = transcript_coordinate - stop_pos - 3
   )]
   coverage_table[, gene_cov := sum(coverage), by = transcript_id]
@@ -144,7 +144,7 @@ if (!file.exists(COVERAGE_FILE)) {
   coverage_table[, codon := ceiling(CDS_coordinate/3)]
   coverage_table[codon <= 0, codon := NA]
   coverage_table[, codon_val := coverage / gene_cov]
-  
+
   coverage_export <- data.table::copy(coverage_table)
   coverage_export[, strand := "+"]
   coverage_export[, totalcov := sum(coverage), by = transcript_id]
@@ -152,11 +152,11 @@ if (!file.exists(COVERAGE_FILE)) {
   coverage_export[, length_codon := ceiling(cds_len/3)]
   coverage_export[, codon := ceiling((CDS_coordinate)/3)]
   coverage_export[codon <= 0, codon := NA]
-  
+
   cov_codon <- coverage_export[, sum(coverage), by = .(transcript_id, codon)]
   coverage_export[cov_codon, coverage_codon := i.V1, on = .(transcript_id, codon)]
   coverage_export[is.na(coverage_export$coverage_codon), coverage_codon := 0]
-  
+
   fwrite(coverage_export, file = COVERAGE_FILE)
   cov_list <- coverage_export[transcript_id %in% txlens_max$tx_name]
   rm(reads, coverage_table, coverage_export)
@@ -175,7 +175,7 @@ cat("[PROGRESS] 40% | Calculating codon usage...\n")
 codon_usage_count <- function(coverage_cds = NULL, d = NULL, normalization = NULL, tss_extension = NULL) {
   coverage_cds <- coverage_cds[(CDS_coordinate - 1)%%3 == 0]
   coverage_cds <- coverage_cds[codon > 15]
-  
+
   coverage_cds[transcript_seqs, cds_seq := i.seq, on = .(transcript_id)]
   siteNames <- c("E", "P", "A", "+1", "+2", "+3")
   names(siteNames) <- -2:3
@@ -186,7 +186,7 @@ codon_usage_count <- function(coverage_cds = NULL, d = NULL, normalization = NUL
   }
   aa <- lapply(-2:3, mutialinfor)
   coverage_cds[, cds_seq := NULL]
-  
+
   coverage_cds[, freq := 1]
   summary <- list()
   for (i in 1:length(aa)) {
@@ -197,16 +197,16 @@ codon_usage_count <- function(coverage_cds = NULL, d = NULL, normalization = NUL
     }
     summary[[i]] <- setnames(tem[, sum(coverage), by = eval(as.character(pos))], c('codon', pos))
   }
-  
+
   codon_usage <- Reduce(function(x, y) merge(x, y, all = TRUE), summary)
   codon_usage[is.na(codon_usage)] = 0
   codon_usage <- codon_usage[grepl('[ATGC]{3}', codon_usage$codon)]
-  
+
   codon_usage[, baseline := rowMeans(codon_usage[, names(codon_usage) %like% 'position', with = FALSE][, paste0('position_', '+', c(1:3)), with = FALSE])]
   norm_codon_usage <- sapply(codon_usage[, names(codon_usage) %like% 'position', with = FALSE], function(x) x/codon_usage$baseline)
   codon_usage <- cbind(codon_usage[, 1], norm_codon_usage)
   codon_usage <- as.data.table(append(codon_usage, list(aminoacid = as.character(Biostrings::translate(DNAStringSet(codon_usage$codon)))), after = 1))
-  
+
   coverage_cds$position_A <- codon_A_sites
   if (normalization == 'gene_avg_density') {
     stats <- coverage_cds[, sum(coverage), by = 'transcript_id']
@@ -215,7 +215,7 @@ codon_usage_count <- function(coverage_cds = NULL, d = NULL, normalization = NUL
     coverage_cds[times, times := i.V1, on = 'transcript_id']
     coverage_cds[, coverage := coverage/(total_rpf/times)]
   }
-  
+
   codon_occuracy_matrix = coverage_cds[, .(list(coverage)), by = 'position_A']
   setnames(codon_occuracy_matrix, c("position_A", "V1"), c("codon", "occupacy_metric"))
   codon_usage[codon_occuracy_matrix, occupacy_metric := i.occupacy_metric, on = "codon" ]
@@ -245,7 +245,7 @@ if (nrow(cov_list[totalcov > 20]) > 0) {
 codon_occupancy_profiles <- function(cov_list = NULL, transcript_seqs = NULL, tss_extension = NULL){
   coverage_cds <- cov_list
   coverage_cds <- coverage_cds[CDS_coordinate <= cds_len & cds_len > 61, ]
-  
+
   txlens2 <- data.table::copy(txlens)
   setnames(txlens2, "tx_name", "transcript_id")
   tx_info <- merge(txlens2[, c("transcript_id", "cds_len", "utr5_len", "tx_len")],
@@ -255,13 +255,13 @@ codon_occupancy_profiles <- function(cov_list = NULL, transcript_seqs = NULL, ts
   tx_info[, start_codon := substr(seq, utr5_len + tss_extension + 1, utr5_len + tss_extension + 3)]
   tx_info <- tx_info[!is.na(start_codon) & startsWith(start_codon, "atg") & cds_len > 61]
   tx_info[, start_codon := NULL]
-  
+
   if (nrow(tx_info) == 0) {
     return(data.table(codons_seq = character(), normalized_value = list()))
   }
-  
+
   coverage_cds <- coverage_cds[transcript_id %in% tx_info$transcript_id]
-  
+
   tmp <- coverage_cds[!is.na(codon),
                       .(list(CDS_coordinate), list(coverage), list(integer(ceiling(cds_len[[1]])))),
                       by = transcript_id]
@@ -270,7 +270,7 @@ codon_occupancy_profiles <- function(cov_list = NULL, transcript_seqs = NULL, ts
                                    x = occupancy, y = cdscor, z = coverage)))}, by = transcript_id]
   setnames(profiles, c('transcript_id', 'profile'))
   profiles[, profile := sapply(profile, as.integer)]
-  
+
   profiles <- merge(x = profiles,
                     y = tx_info[, c("transcript_id", "cds_len", "utr5_len", "tx_len", "seq")],
                     by = "transcript_id",
@@ -279,11 +279,11 @@ codon_occupancy_profiles <- function(cov_list = NULL, transcript_seqs = NULL, ts
     strsplit(gsub("([[:alnum:]]{3})", "\\1 ", substr(seq, i + 1, i + j)), " ")[[1]]
   }, seq, utr5_len + tss_extension, cds_len)]
   profiles[, seq := NULL]
-  
+
   acc_sum <- new.env(parent = emptyenv())
   acc_n <- new.env(parent = emptyenv())
   codon_order <- character(0)
-  
+
   add_window <- function(codon, window_vec, window_sum) {
     if (!is.finite(window_sum) || window_sum <= 20) return(invisible(FALSE))
     norm_vec <- window_vec * length(window_vec) / window_sum
@@ -297,11 +297,11 @@ codon_occupancy_profiles <- function(cov_list = NULL, transcript_seqs = NULL, ts
     }
     invisible(TRUE)
   }
-  
+
   if (nrow(profiles) == 0) {
     return(data.table(codons_seq = character(), normalized_value = list()))
   }
-  
+
   for (i in seq_len(nrow(profiles))) {
     cs <- profiles$codon_seqs[[i]]
     x <- profiles$profile[[i]]
@@ -320,11 +320,11 @@ codon_occupancy_profiles <- function(cov_list = NULL, transcript_seqs = NULL, ts
       add_window(codons_for_windows[j], m[j, ], row_sums[j])
     }
   }
-  
+
   if (length(codon_order) == 0) {
     return(data.table(codons_seq = character(), normalized_value = list()))
   }
-  
+
   normalized_value <- lapply(codon_order, function(codon) {
     get(codon, envir = acc_sum, inherits = FALSE) / get(codon, envir = acc_n, inherits = FALSE)
   })
