@@ -117,7 +117,10 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, activeModule, 
       "System Alert: You are about to interrupt all current calculations. Continue?", 
       { title: "RiboMeta Engine", kind: "warning" }
     );
-    if (confirmed) await abortAnalysis();
+    if (confirmed) {
+      await abortAnalysis();
+      setExpanded(false);
+    }
   };
 
   return (
@@ -135,6 +138,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, activeModule, 
           <NavItem active={activeModule === 'QC'} label="Quality Control" icon={<Icon icon={chartBoxOutline} width={16} height={16} />} onClick={() => onModuleChange('QC')} />
           <NavItem active={activeModule === 'Codon'} label="Codon" icon={<Icon icon={dna} width={16} height={16} />} onClick={() => onModuleChange('Codon')} />
           <NavItem active={activeModule === 'MetaView'} label="MetaView" icon={<Icon icon={chartTimelineVariantShimmer} width={16} height={16} />} onClick={() => onModuleChange('MetaView')} />
+          <NavItem active={activeModule === 'OrfPause'} label="ORF Pause" icon={<Activity size={16} />} onClick={() => onModuleChange('OrfPause')} />
           
           <div className="my-2 border-t border-app-border/30 mx-6" />
           <NavItem active={activeModule === 'About'} label="About & Help" icon={<Icon icon={helpCircleOutline} width={16} height={16} />} onClick={() => onModuleChange('About')} />

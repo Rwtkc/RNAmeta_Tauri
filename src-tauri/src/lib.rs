@@ -58,6 +58,47 @@ fn cleanup_secure_script(path: String) -> Result<(), String> {
     Ok(())
 }
 
+#[tauri::command]
+fn terminate_process_tree(pid: u32) -> Result<(), String> {
+    if pid == 0 {
+        return Ok(());
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        let pid_str = pid.to_string();
+        let status = std::process::Command::new("taskkill")
+            .args(["/PID", &pid_str, "/T", "/F"])
+            .status()
+            .map_err(|e| format!("Failed to execute taskkill for PID {pid}: {e}"))?;
+        if status.success() {
+            Ok(())
+        } else {
+            Err(format!(
+                "taskkill failed for PID {pid} with status {:?}",
+                status.code()
+            ))
+        }
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        let pid_str = pid.to_string();
+        let status = std::process::Command::new("kill")
+            .args(["-TERM", &pid_str])
+            .status()
+            .map_err(|e| format!("Failed to send TERM to PID {pid}: {e}"))?;
+        if status.success() {
+            Ok(())
+        } else {
+            Err(format!(
+                "kill -TERM failed for PID {pid} with status {:?}",
+                status.code()
+            ))
+        }
+    }
+}
+
 #[derive(serde::Serialize)]
 struct CoveragePoint {
     transcript_coordinate: i64,
@@ -546,6 +587,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             prepare_secure_script,
             cleanup_secure_script,
+            terminate_process_tree,
             load_coverage_table_page,
             list_coverage_transcripts,
             load_coverage_profile

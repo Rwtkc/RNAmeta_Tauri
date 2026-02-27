@@ -5,6 +5,7 @@ import { Command, Child } from "@tauri-apps/plugin-shell";
 import { useLogStore } from "@/store/useLogStore";
 
 const analysisRegistry = new Map<Child, (reason: Error) => void>();
+const abortedPids = new Set<number>();
 
 export const abortAnalysis = async () => {
   const { addLog } = useLogStore.getState();
@@ -16,16 +17,22 @@ export const abortAnalysis = async () => {
   );
 
   const tasks = Array.from(analysisRegistry.entries());
-  analysisRegistry.clear();
+  tasks.forEach(([child]) => abortedPids.add(child.pid));
 
+  // Mark active tasks as aborted immediately so UI does not display "Exit code 1".
+  analysisRegistry.clear();
   tasks.forEach(([_, rejecter]) => rejecter(new Error("Aborted")));
 
   await Promise.all(
-    tasks.map(([child]) =>
-      child
-        .kill()
-        .catch((e) => console.warn("[Engine] Process cleanup warning:", e))
-    )
+    tasks.map(async ([child]) => {
+      await Promise.all([
+        invoke("terminate_process_tree", { pid: child.pid }).catch((e) =>
+          console.warn("[Engine] Process tree cleanup warning:", e)
+        ),
+        child.kill().catch((e) => console.warn("[Engine] Process cleanup warning:", e)),
+      ]);
+      abortedPids.delete(child.pid);
+    })
   );
 };
 
@@ -64,19 +71,43 @@ export const useRAnalysis = () => {
 
           const command = Command.create("r-engine", [tempScriptPath, ...args]);
 
-          command.stdout.on("data", (line) =>
-            addLog("info", `[R-Out]: ${line}`)
-          );
+          command.stdout.on("data", (line) => {
+            if (childInstance && abortedPids.has(childInstance.pid)) return;
+            addLog("info", `[R-Out]: ${line}`);
+          });
 
           command.stderr.on("data", (line) => {
-            const isWarning =
-              line.toLowerCase().includes("warning") &&
-              !line.toLowerCase().includes("error");
-            if (!isWarning) addLog("error", `[R-Stderr]: ${line}`);
+            if (childInstance && abortedPids.has(childInstance.pid)) return;
+
+            const normalized = line.toLowerCase().trim();
+            const raw = line.trim();
+
+            const isWarningHeader =
+              normalized === "warning message:" || normalized === "warning messages:";
+            const isDataTableBuildNotice =
+              raw.includes("data.table") &&
+              (normalized.includes("built under r version") ||
+                raw.includes("\u5efa\u9020") ||
+                raw.includes("\u7248\u672c"));
+
+            if (isWarningHeader || isDataTableBuildNotice) {
+              return;
+            }
+
+            if (normalized.includes("error") || raw.includes("\u9519\u8bef")) {
+              addLog("error", `[R-Stderr]: ${line}`);
+              return;
+            }
+
+            addLog("info", `[R-Stderr]: ${line}`);
           });
 
           command.on("close", (data) => {
             if (childInstance && analysisRegistry.has(childInstance)) {
+              if (abortedPids.has(childInstance.pid)) {
+                handleTaskEnd(new Error("Aborted"));
+                return;
+              }
               if (data.code === 0) handleTaskEnd();
               else handleTaskEnd(new Error(`Exit code ${data.code}`));
             }
