@@ -34,7 +34,7 @@ const SORT_OPTIONS = [
 ];
 
 export const CodonModule: React.FC = () => {
-	const { dbPath, outputPath, bamPath, species, isIndexFound } = useConfigStore();
+	const { dbPath, outputPath, bamPath, species, seqType, isIndexFound } = useConfigStore();
 	const { setExpanded, addLog } = useLogStore();
 	const { runRScript, isRunning } = useRAnalysis();
 
@@ -55,7 +55,7 @@ export const CodonModule: React.FC = () => {
 
 	const [exportSettings, setExportSettings] = useState({ width: 210, height: 148, dpi: 300, format: 'png' as 'png' | 'pdf' });
 
-	const isProjectReady = !!(dbPath && outputPath && species && isIndexFound);
+	const isProjectReady = !!(dbPath && outputPath && species && seqType && isIndexFound);
 
 	const filteredExportCodons = useMemo(() => {
 		return occupancyData

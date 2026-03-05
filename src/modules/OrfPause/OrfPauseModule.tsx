@@ -3,6 +3,7 @@ import {
   AlertCircle,
   CheckCircle2,
   ChevronRight,
+  Dna,
   LoaderCircle,
   Play,
   Search,
@@ -14,6 +15,9 @@ import { useConfigStore } from "@/store/useConfigStore";
 import { useLogStore } from "@/store/useLogStore";
 import { useRAnalysis } from "@/hooks/useRAnalysis";
 import { useOrfPauseStore } from "@/store/useOrfPauseStore";
+import { D3OrfEvidenceScatter } from "@/modules/OrfPause/D3OrfEvidenceScatter";
+import { D3TranscriptTrackChart } from "@/modules/OrfPause/D3TranscriptTrackChart";
+import { getOrfTypeColor } from "@/modules/OrfPause/orfTypeColor";
 
 const PAGE_SIZE = 15;
 
@@ -21,6 +25,47 @@ interface ParsedTable {
   headers: string[];
   rows: string[][];
 }
+
+interface OrfVizRow {
+  transcriptId: string;
+  start: number;
+  end: number;
+  strand: string;
+  orfType: string;
+  startCodon: string;
+  orfScore: number;
+  pvalue: number;
+  total: number;
+}
+
+interface PauseVizRow {
+  transcriptId: string;
+  coordinate: number;
+  ratio: number;
+  coverage: number;
+  windowMean: number;
+}
+
+interface TranscriptStat {
+  transcriptId: string;
+  count: number;
+}
+
+interface VizPayload {
+  orfVizRows: OrfVizRow[];
+  pauseVizRows: PauseVizRow[];
+  transcriptStats: TranscriptStat[];
+}
+
+interface VizCache {
+  orfHeadersRef: string[];
+  orfRowsRef: string[][];
+  pauseHeadersRef: string[];
+  pauseRowsRef: string[][];
+  payload: VizPayload;
+}
+
+let vizCache: VizCache | null = null;
 
 const filterRows = (rows: string[][], query: string): string[][] => {
   const normalized = query.trim().toLowerCase();
@@ -55,6 +100,108 @@ const parseTsvTable = (text: string, filename: string): ParsedTable => {
   });
 
   return { headers, rows };
+};
+
+const findColumnIndex = (headers: string[], candidates: string[]): number => {
+  const normalized = headers.map((h) => h.trim().toLowerCase());
+  for (const key of candidates) {
+    const idx = normalized.indexOf(key.toLowerCase());
+    if (idx >= 0) return idx;
+  }
+  return -1;
+};
+
+const toFiniteNumber = (value: string): number | null => {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+};
+
+const parseStrandFromOrfId = (orfId: string): string => {
+  const head = (orfId || "").split("|")[0] ?? "";
+  const parts = head.split(":").map((p) => p.trim()).filter(Boolean);
+  const candidate = parts[parts.length - 1] ?? "";
+  if (candidate === "+" || candidate === "-") return candidate;
+  return "+";
+};
+
+const buildOrfVizRows = (headers: string[], rows: string[][]): OrfVizRow[] => {
+  const idxTranscript = findColumnIndex(headers, ["transcript_id", "transcriptid"]);
+  const idxStart = findColumnIndex(headers, ["start"]);
+  const idxEnd = findColumnIndex(headers, ["end"]);
+  const idxStrand = findColumnIndex(headers, ["orf_strand", "strand"]);
+  const idxOrfId = findColumnIndex(headers, ["orfid", "orf_id"]);
+  const idxOrfType = findColumnIndex(headers, ["orf_type"]);
+  const idxStartCodon = findColumnIndex(headers, ["start_codon"]);
+  const idxOrfScore = findColumnIndex(headers, ["orfscore", "orf_score"]);
+  const idxPvalue = findColumnIndex(headers, ["pvalue", "p_value"]);
+  const idxTotal = findColumnIndex(headers, ["total"]);
+
+  if (idxTranscript < 0 || idxStart < 0 || idxEnd < 0 || idxOrfScore < 0 || idxPvalue < 0 || idxTotal < 0) {
+    return [];
+  }
+
+  const parsed: OrfVizRow[] = [];
+  for (const row of rows) {
+    const transcriptId = row[idxTranscript] ?? "";
+    const start = toFiniteNumber(row[idxStart] ?? "");
+    const end = toFiniteNumber(row[idxEnd] ?? "");
+    const orfScore = toFiniteNumber(row[idxOrfScore] ?? "");
+    const pvalue = toFiniteNumber(row[idxPvalue] ?? "");
+    const total = toFiniteNumber(row[idxTotal] ?? "");
+    if (!transcriptId || start === null || end === null || orfScore === null || pvalue === null || total === null) {
+      continue;
+    }
+    parsed.push({
+      transcriptId,
+      start,
+      end,
+      strand:
+        idxStrand >= 0 && (row[idxStrand] === "+" || row[idxStrand] === "-")
+          ? (row[idxStrand] as string)
+          : parseStrandFromOrfId(idxOrfId >= 0 ? row[idxOrfId] ?? "" : ""),
+      orfType: idxOrfType >= 0 ? row[idxOrfType] ?? "unknown" : "unknown",
+      startCodon: idxStartCodon >= 0 ? row[idxStartCodon] ?? "" : "",
+      orfScore,
+      pvalue,
+      total,
+    });
+  }
+  return parsed;
+};
+
+const buildPauseVizRows = (headers: string[], rows: string[][]): PauseVizRow[] => {
+  const idxTranscript = findColumnIndex(headers, ["transcript_id", "i.transcript_id", "transcriptid"]);
+  const idxCoord = findColumnIndex(headers, [
+    "transcript_coordinate",
+    "i.transcript_coordinate",
+    "coordinate",
+    "position",
+  ]);
+  const idxRatio = findColumnIndex(headers, ["ratio", "pause_ratio"]);
+  const idxCoverage = findColumnIndex(headers, ["coverage", "i.coverage"]);
+  const idxWindowMean = findColumnIndex(headers, ["window_mean", "windowmean"]);
+
+  if (idxTranscript < 0 || idxCoord < 0 || idxRatio < 0) {
+    return [];
+  }
+
+  const parsed: PauseVizRow[] = [];
+  for (const row of rows) {
+    const transcriptId = row[idxTranscript] ?? "";
+    const coordinate = toFiniteNumber(row[idxCoord] ?? "");
+    const ratio = toFiniteNumber(row[idxRatio] ?? "");
+    if (!transcriptId || coordinate === null || ratio === null) continue;
+    const coverage = idxCoverage >= 0 ? toFiniteNumber(row[idxCoverage] ?? "") ?? 0 : 0;
+    const windowMean = idxWindowMean >= 0 ? toFiniteNumber(row[idxWindowMean] ?? "") ?? 0 : 0;
+    parsed.push({
+      transcriptId,
+      coordinate,
+      ratio,
+      coverage,
+      windowMean,
+    });
+  }
+  return parsed;
 };
 
 const formatHeaderLabel = (header: string): string => {
@@ -112,12 +259,23 @@ const formatPvalueCell = (
   };
 };
 
+const buildTranscriptStats = (rows: OrfVizRow[]): TranscriptStat[] => {
+  const map = new Map<string, number>();
+  for (const row of rows) {
+    map.set(row.transcriptId, (map.get(row.transcriptId) ?? 0) + 1);
+  }
+  return Array.from(map.entries())
+    .map(([transcriptId, count]) => ({ transcriptId, count }))
+    .sort((a, b) => b.count - a.count);
+};
+
 export const OrfPauseModule: React.FC = () => {
   const {
     dbPath,
     outputPath,
     bamPath,
     species,
+    seqType,
     isIndexFound,
     isOffsetsConfFound,
     isTxlensFound,
@@ -146,19 +304,21 @@ export const OrfPauseModule: React.FC = () => {
     [dbPath, outputPath, bamPath, species]
   );
 
+  const hasSeqType = seqType === "monosome" || seqType === "disome";
   const canGenerateCoverage = !!(
     outputPath &&
     dbPath &&
     species &&
     bamPath &&
+    hasSeqType &&
     isIndexFound &&
     isOffsetsConfFound &&
     isTxlensFound
   );
   const canRunWithExistingCoverage = !!(outputPath && dbPath && species && hasCandidateOrf);
-  const isProjectReady = hasCoverageInOutput
+  const isProjectReady = hasSeqType && (hasCoverageInOutput
     ? canRunWithExistingCoverage
-    : canGenerateCoverage && hasCandidateOrf;
+    : canGenerateCoverage && hasCandidateOrf);
 
   const filteredOrfRows = useMemo(
     () => filterRows(orfTable.rows, orfTable.searchQuery),
@@ -167,6 +327,57 @@ export const OrfPauseModule: React.FC = () => {
   const filteredPauseRows = useMemo(
     () => filterRows(pauseTable.rows, pauseTable.searchQuery),
     [pauseTable.rows, pauseTable.searchQuery]
+  );
+  const { orfVizRows, pauseVizRows, transcriptStats } = useMemo<VizPayload>(() => {
+    if (
+      vizCache &&
+      vizCache.orfHeadersRef === orfTable.headers &&
+      vizCache.orfRowsRef === orfTable.rows &&
+      vizCache.pauseHeadersRef === pauseTable.headers &&
+      vizCache.pauseRowsRef === pauseTable.rows
+    ) {
+      return vizCache.payload;
+    }
+
+    const nextOrfVizRows = buildOrfVizRows(orfTable.headers, orfTable.rows);
+    const nextPauseVizRows = buildPauseVizRows(pauseTable.headers, pauseTable.rows);
+    const nextTranscriptStats = buildTranscriptStats(nextOrfVizRows);
+    const payload: VizPayload = {
+      orfVizRows: nextOrfVizRows,
+      pauseVizRows: nextPauseVizRows,
+      transcriptStats: nextTranscriptStats,
+    };
+
+    vizCache = {
+      orfHeadersRef: orfTable.headers,
+      orfRowsRef: orfTable.rows,
+      pauseHeadersRef: pauseTable.headers,
+      pauseRowsRef: pauseTable.rows,
+      payload,
+    };
+
+    return payload;
+  }, [orfTable.headers, orfTable.rows, pauseTable.headers, pauseTable.rows]);
+  const [selectedTranscriptId, setSelectedTranscriptId] = useState("");
+
+  useEffect(() => {
+    if (!transcriptStats.length) {
+      if (selectedTranscriptId) setSelectedTranscriptId("");
+      return;
+    }
+    const hasCurrent = transcriptStats.some((item) => item.transcriptId === selectedTranscriptId);
+    if (!selectedTranscriptId || !hasCurrent) {
+      setSelectedTranscriptId(transcriptStats[0].transcriptId);
+    }
+  }, [selectedTranscriptId, transcriptStats]);
+
+  const selectedOrfRows = useMemo(
+    () => orfVizRows.filter((row) => row.transcriptId === selectedTranscriptId),
+    [orfVizRows, selectedTranscriptId]
+  );
+  const selectedPauseRows = useMemo(
+    () => pauseVizRows.filter((row) => row.transcriptId === selectedTranscriptId),
+    [pauseVizRows, selectedTranscriptId]
   );
 
   const orfTotalPages = Math.max(1, Math.ceil(filteredOrfRows.length / PAGE_SIZE));
@@ -432,6 +643,9 @@ export const OrfPauseModule: React.FC = () => {
   };
 
   const isConfigChangedAfterRun = hasAnalyzed && lastRunSignature !== configSignature;
+  const showPreAnalysisPlaceholder =
+    !hasAnalyzed && orfTable.headers.length === 0 && pauseTable.headers.length === 0;
+  const showStatusNoticePanel = !!(notice || error || isConfigChangedAfterRun);
 
   return (
     <div className="w-full space-y-12 pb-24">
@@ -473,69 +687,80 @@ export const OrfPauseModule: React.FC = () => {
         </div>
       </header>
 
-      <section className="bg-white border border-app-border rounded-2xl p-4 shadow-sm space-y-3">
-        <div className="space-y-2 text-xs text-slate-600">
-          <div className="flex items-center gap-2">
-            <span className="font-semibold">Coverage status:</span>
-            <span>{hasCoverageInOutput ? "coverage_mRNA.csv found in output directory." : "coverage_mRNA.csv will be generated if missing."}</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="font-semibold">Candidate ORF:</span>
-            <span className={hasCandidateOrf ? "text-emerald-700" : "text-rose-600"}>
-              {hasCandidateOrf ? candidateOrfPath : `${species}.candidateORF3.txt not found in DB directory.`}
-            </span>
-          </div>
-        </div>
+      {showStatusNoticePanel && (
+        <section className="bg-white border border-app-border rounded-2xl p-4 shadow-sm space-y-3">
+          {notice && (
+            <div className="flex items-center gap-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+              <AlertCircle size={14} />
+              <span>{notice}</span>
+            </div>
+          )}
 
-        {notice && (
-          <div className="flex items-center gap-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-            <AlertCircle size={14} />
-            <span>{notice}</span>
-          </div>
-        )}
+          {error && (
+            <div className="flex items-center gap-2 text-xs text-rose-600 bg-rose-50 border border-rose-200 rounded-lg px-3 py-2">
+              <AlertCircle size={14} />
+              <span>{error}</span>
+            </div>
+          )}
 
-        {error && (
-          <div className="flex items-center gap-2 text-xs text-rose-600 bg-rose-50 border border-rose-200 rounded-lg px-3 py-2">
-            <AlertCircle size={14} />
-            <span>{error}</span>
-          </div>
-        )}
+          {isConfigChangedAfterRun && (
+            <div className="flex items-center gap-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+              <AlertCircle size={14} />
+              <span>Configuration changed after last run. Re-run analysis to refresh results.</span>
+            </div>
+          )}
+        </section>
+      )}
 
-        {isConfigChangedAfterRun && (
-          <div className="flex items-center gap-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-            <AlertCircle size={14} />
-            <span>Configuration changed after last run. Re-run analysis to refresh results.</span>
-          </div>
-        )}
-      </section>
+      {showPreAnalysisPlaceholder ? (
+        <section className="h-96 w-full rounded-[2.5rem] border-2 border-dashed border-app-border flex flex-col items-center justify-center space-y-4">
+          <Dna size={48} className="text-slate-200" />
+          <p className="text-xs font-medium text-slate-400 italic">No ORF metrics found. Execute analysis pipeline.</p>
+        </section>
+      ) : (
+        <>
+          <EvidenceScatterSection
+            rows={orfVizRows}
+            onSelectTranscript={setSelectedTranscriptId}
+          />
 
-      <ResultTableSection
-        title="orfcall.parameters.txt"
-        tableKey="orf"
-        tableState={orfTable}
-        totalPages={orfTotalPages}
-        pageRows={orfPageRows}
-        filteredRowsCount={filteredOrfRows.length}
-        isBusy={isRunning}
-        onSearch={handleSearch}
-        onClearSearch={handleClearSearch}
-        onSetTableData={setTableData}
-        onJumpSubmit={handleJumpSubmit}
-      />
+          <TranscriptTrackSection
+            selectedTranscriptId={selectedTranscriptId}
+            transcriptStats={transcriptStats}
+            orfRows={selectedOrfRows}
+            pauseRows={selectedPauseRows}
+            onSelectTranscript={setSelectedTranscriptId}
+          />
 
-      <ResultTableSection
-        title="pause.txt"
-        tableKey="pause"
-        tableState={pauseTable}
-        totalPages={pauseTotalPages}
-        pageRows={pausePageRows}
-        filteredRowsCount={filteredPauseRows.length}
-        isBusy={isRunning}
-        onSearch={handleSearch}
-        onClearSearch={handleClearSearch}
-        onSetTableData={setTableData}
-        onJumpSubmit={handleJumpSubmit}
-      />
+          <ResultTableSection
+            title="orfcall.parameters.txt"
+            tableKey="orf"
+            tableState={orfTable}
+            totalPages={orfTotalPages}
+            pageRows={orfPageRows}
+            filteredRowsCount={filteredOrfRows.length}
+            isBusy={isRunning}
+            onSearch={handleSearch}
+            onClearSearch={handleClearSearch}
+            onSetTableData={setTableData}
+            onJumpSubmit={handleJumpSubmit}
+          />
+
+          <ResultTableSection
+            title="pause.txt"
+            tableKey="pause"
+            tableState={pauseTable}
+            totalPages={pauseTotalPages}
+            pageRows={pausePageRows}
+            filteredRowsCount={filteredPauseRows.length}
+            isBusy={isRunning}
+            onSearch={handleSearch}
+            onClearSearch={handleClearSearch}
+            onSetTableData={setTableData}
+            onJumpSubmit={handleJumpSubmit}
+          />
+        </>
+      )}
     </div>
   );
 };
@@ -571,6 +796,211 @@ interface ResultTableSectionProps {
   onJumpSubmit: (table: "orf" | "pause", totalPages: number, rawInput: string) => void;
 }
 
+const EvidenceScatterSection: React.FC<{
+  rows: OrfVizRow[];
+  onSelectTranscript: (transcriptId: string) => void;
+}> = ({ rows, onSelectTranscript }) => {
+  const legend = useMemo(() => {
+    const countMap = new Map<string, number>();
+    for (const row of rows) {
+      const key = row.orfType || "unknown";
+      countMap.set(key, (countMap.get(key) ?? 0) + 1);
+    }
+    return Array.from(countMap.entries()).sort((a, b) => b[1] - a[1]);
+  }, [rows]);
+
+  return (
+    <section className="bg-white border border-app-border rounded-2xl p-4 shadow-sm space-y-3">
+      <div className="flex items-center justify-between gap-3">
+        <h3 className="text-sm font-bold text-slate-700">ORF Evidence Overview</h3>
+        <div className="text-xs text-slate-500">
+          ORFs: {rows.length.toLocaleString()}
+        </div>
+      </div>
+
+      {rows.length === 0 ? (
+        <div className="p-4 text-xs text-slate-400 italic">Run analysis to render ORF evidence overview.</div>
+      ) : (
+        <div className="overflow-x-auto border border-app-border rounded-lg p-2 bg-slate-50/50">
+          <div className="min-w-[760px]">
+            <D3OrfEvidenceScatter rows={rows} onSelectTranscript={onSelectTranscript} />
+          </div>
+        </div>
+      )}
+
+      <div className="flex flex-wrap gap-3 text-xs">
+        {legend.map(([type, count]) => (
+          <div key={type} className="inline-flex items-center gap-2 text-slate-600">
+            <span
+              className="w-2.5 h-2.5 rounded-full"
+              style={{
+                backgroundColor: getOrfTypeColor(type),
+              }}
+            />
+            <span>{`${type}: ${count.toLocaleString()}`}</span>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+};
+
+const TranscriptTrackSection: React.FC<{
+  selectedTranscriptId: string;
+  transcriptStats: Array<{ transcriptId: string; count: number }>;
+  orfRows: OrfVizRow[];
+  pauseRows: PauseVizRow[];
+  onSelectTranscript: (transcriptId: string) => void;
+}> = ({ selectedTranscriptId, transcriptStats, orfRows, pauseRows, onSelectTranscript }) => {
+  const TRANSCRIPT_PAGE_SIZE = 10;
+  const [searchQuery, setSearchQuery] = useState("");
+  const [transcriptPage, setTranscriptPage] = useState(1);
+
+  const filteredTranscriptStats = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return transcriptStats;
+    return transcriptStats.filter((item) => item.transcriptId.toLowerCase().includes(q));
+  }, [searchQuery, transcriptStats]);
+
+  const transcriptTotalPages = Math.max(
+    1,
+    Math.ceil(filteredTranscriptStats.length / TRANSCRIPT_PAGE_SIZE)
+  );
+  const pagedTranscriptStats = useMemo(() => {
+    const begin = (transcriptPage - 1) * TRANSCRIPT_PAGE_SIZE;
+    return filteredTranscriptStats.slice(begin, begin + TRANSCRIPT_PAGE_SIZE);
+  }, [filteredTranscriptStats, transcriptPage]);
+
+  useEffect(() => {
+    if (transcriptPage > transcriptTotalPages) {
+      setTranscriptPage(transcriptTotalPages);
+    }
+  }, [transcriptPage, transcriptTotalPages]);
+
+  useEffect(() => {
+    setTranscriptPage(1);
+  }, [searchQuery]);
+
+  return (
+    <section className="bg-white border border-app-border rounded-2xl p-4 shadow-sm space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h3 className="text-sm font-bold text-slate-700">Transcript Track</h3>
+        <div className="text-xs text-slate-500">
+          ORFs: {orfRows.length.toLocaleString()} | Pause sites: {pauseRows.length.toLocaleString()}
+        </div>
+      </div>
+
+      {transcriptStats.length === 0 ? (
+        <div className="p-4 text-xs text-slate-400 italic">Run analysis to render transcript track.</div>
+      ) : (
+        <>
+          <div className="space-y-2">
+            <div className="flex flex-wrap items-center gap-3">
+              <input
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    const value = searchQuery.trim().toLowerCase();
+                    if (!value) return;
+                    const exact = transcriptStats.find(
+                      (item) => item.transcriptId.toLowerCase() === value
+                    );
+                    if (exact) {
+                      onSelectTranscript(exact.transcriptId);
+                      return;
+                    }
+                    const firstMatch = filteredTranscriptStats[0];
+                    if (firstMatch) onSelectTranscript(firstMatch.transcriptId);
+                  }
+                }}
+                className="w-full sm:w-[420px] bg-app-input border border-app-border rounded-lg px-3 py-2 text-xs"
+                placeholder="Search transcript ID..."
+              />
+              {searchQuery.trim() && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery("")}
+                  className="px-3 py-2 rounded border border-app-border text-xs text-slate-700 hover:bg-slate-50"
+                >
+                  Clear
+                </button>
+              )}
+              <span className="text-[11px] text-slate-500">
+                {filteredTranscriptStats.length.toLocaleString()} matches | 10 per page
+              </span>
+              <span className="text-[11px] text-slate-500">
+                Selected: {selectedTranscriptId}
+              </span>
+            </div>
+
+            <div className="border border-app-border rounded-lg bg-slate-50/50">
+              {pagedTranscriptStats.length === 0 ? (
+                <div className="px-3 py-4 text-xs text-slate-400 italic">
+                  No transcript matches this search.
+                </div>
+              ) : (
+                <div className="divide-y divide-app-border">
+                  {pagedTranscriptStats.map((item) => {
+                    const active = item.transcriptId === selectedTranscriptId;
+                    return (
+                      <button
+                        key={item.transcriptId}
+                        type="button"
+                        onClick={() => onSelectTranscript(item.transcriptId)}
+                        className={`w-full flex items-center justify-between px-3 py-2 text-left text-xs transition-colors ${
+                          active ? "bg-emerald-50 text-emerald-700" : "hover:bg-slate-100 text-slate-700"
+                        }`}
+                      >
+                        <span className="font-medium">{item.transcriptId}</span>
+                        <span className="text-[11px] text-slate-500">ORFs: {item.count.toLocaleString()}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-end gap-2 text-xs">
+              <button
+                type="button"
+                onClick={() => setTranscriptPage((p) => Math.max(1, p - 1))}
+                disabled={transcriptPage <= 1}
+                className="px-3 py-1.5 rounded border border-app-border text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+              >
+                Prev
+              </button>
+              <span className="text-slate-500">
+                Page {transcriptPage}/{transcriptTotalPages}
+              </span>
+              <button
+                type="button"
+                onClick={() => setTranscriptPage((p) => Math.min(transcriptTotalPages, p + 1))}
+                disabled={transcriptPage >= transcriptTotalPages}
+                className="px-3 py-1.5 rounded border border-app-border text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+              >
+                Next
+              </button>
+            </div>
+          </div>
+
+          <div className="border border-app-border rounded-lg p-2 bg-slate-50/50">
+            <div className="overflow-x-auto rounded-md border border-app-border/70 bg-white/60">
+              <div className="min-w-[760px]">
+                <D3TranscriptTrackChart
+                  selectedTranscriptId={selectedTranscriptId}
+                  orfRows={orfRows}
+                  pauseRows={pauseRows}
+                />
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+    </section>
+  );
+};
+
 const ResultTableSection: React.FC<ResultTableSectionProps> = ({
   title,
   tableKey,
@@ -586,7 +1016,7 @@ const ResultTableSection: React.FC<ResultTableSectionProps> = ({
 }) => {
   const orfIdColumnIndex =
     tableKey === "orf" ? tableState.headers.findIndex((header) => header.toLowerCase() === "orfid") : -1;
-  const tableMinHeight = "calc(15 * 2rem + 3rem)";
+  const tableMinHeight = "calc(15 * 2rem + 3.5rem)";
   const tableViewportHeight = tableKey === "orf" ? "min(66vh, 46rem)" : "min(54vh, 38rem)";
   const shouldSplitOrfId = tableKey === "orf" && orfIdColumnIndex >= 0;
   const hiddenSplitDuplicateHeaders = new Set(["orf_type", "start_codon", "mrna", "transcript_id"]);

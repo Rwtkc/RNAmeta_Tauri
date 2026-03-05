@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { AnimatePresence, motion } from "framer-motion";
 import {
+  Dna,
   FlaskConical,
   LoaderCircle,
   Play,
@@ -10,7 +11,6 @@ import {
   Search,
   ChevronRight,
   CheckCircle2,
-  FileSpreadsheet,
   Download,
   X,
   Settings2,
@@ -52,6 +52,7 @@ export const MetaViewModule: React.FC = () => {
     outputPath,
     bamPath,
     species,
+    seqType,
     isIndexFound,
     isOffsetsConfFound,
     isTxlensFound,
@@ -75,6 +76,7 @@ export const MetaViewModule: React.FC = () => {
     format: "png" as "png" | "pdf",
   });
   const {
+    hasAnalyzed,
     csvPath,
     tableHeaders,
     tableRows,
@@ -90,16 +92,18 @@ export const MetaViewModule: React.FC = () => {
   } = useMetaViewStore();
   const { addLog, setExpanded } = useLogStore();
   const { runRScript, isRunning } = useRAnalysis();
+  const hasSeqType = seqType === "monosome" || seqType === "disome";
   const canGenerateCoverage = !!(
     outputPath &&
     dbPath &&
     species &&
     bamPath &&
+    hasSeqType &&
     isIndexFound &&
     isOffsetsConfFound &&
     isTxlensFound
   );
-  const isProjectReady = hasCoverageInOutput || canGenerateCoverage;
+  const isProjectReady = hasSeqType && (hasCoverageInOutput || canGenerateCoverage);
 
   const transcriptIdCol = useMemo(
     () => tableHeaders.findIndex((h) => h === "transcript_id"),
@@ -133,7 +137,10 @@ export const MetaViewModule: React.FC = () => {
     return result;
   }, [page, totalPages]);
 
-  const loadTablePage = async (targetPage: number, targetSearchQuery = searchQuery) => {
+  const loadTablePage = async (
+    targetPage: number,
+    targetSearchQuery = searchQuery
+  ): Promise<boolean> => {
     setIsTableLoading(true);
     setError("");
 
@@ -160,10 +167,12 @@ export const MetaViewModule: React.FC = () => {
         "success",
         `[MetaView] Table loaded: page ${result.page}/${result.total_pages}, filtered_rows=${result.total_rows}.`
       );
+      return true;
     } catch (err: any) {
       const msg = err?.toString?.() ?? "Failed to load coverage table.";
       setError(msg);
       addLog("error", `[MetaView] ${msg}`);
+      return false;
     } finally {
       setIsTableLoading(false);
     }
@@ -229,7 +238,10 @@ export const MetaViewModule: React.FC = () => {
       searchInput: "",
       searchQuery: "",
     });
-    await loadTablePage(1, "");
+    const loaded = await loadTablePage(1, "");
+    if (loaded) {
+      setMetaViewData({ hasAnalyzed: true });
+    }
   };
 
   const handleExecuteAnalysis = async () => {
@@ -483,6 +495,7 @@ export const MetaViewModule: React.FC = () => {
   useEffect(() => {
     if (!outputPath.trim()) {
       setMetaViewData({
+        hasAnalyzed: false,
         csvPath: "",
         loadedCsvPath: "",
         tableHeaders: [],
@@ -500,8 +513,31 @@ export const MetaViewModule: React.FC = () => {
       const outputCoveragePath = await join(outputPath, "coverage_mRNA.csv");
       if (cancelled) return;
       const state = useMetaViewStore.getState();
+
+      const pathChanged =
+        (state.loadedCsvPath.trim().length > 0 && state.loadedCsvPath !== outputCoveragePath) ||
+        ((state.hasAnalyzed || state.tableRows.length > 0) &&
+          state.csvPath.trim().length > 0 &&
+          state.csvPath !== outputCoveragePath);
+
       if (state.csvPath !== outputCoveragePath) {
         setMetaViewData({ csvPath: outputCoveragePath });
+      }
+
+      if (pathChanged) {
+        setMetaViewData({
+          hasAnalyzed: false,
+          loadedCsvPath: "",
+          tableHeaders: [],
+          tableRows: [],
+          page: 1,
+          totalPages: 1,
+          searchInput: "",
+          searchQuery: "",
+          jumpPageInput: "",
+          selectedRowKey: "",
+          profile: null,
+        });
       }
 
       const found = await exists(outputCoveragePath);
@@ -509,14 +545,9 @@ export const MetaViewModule: React.FC = () => {
 
       if (found) {
         setMetaViewData({ hasCoverageInOutput: true });
-        const latest = useMetaViewStore.getState();
-        const hasCachedTable =
-          latest.loadedCsvPath === outputCoveragePath && latest.tableHeaders.length > 0;
-        if (!hasCachedTable) {
-          void loadTablePage(1, "");
-        }
       } else {
         setMetaViewData({
+          hasAnalyzed: false,
           hasCoverageInOutput: false,
           loadedCsvPath: "",
           tableHeaders: [],
@@ -526,10 +557,6 @@ export const MetaViewModule: React.FC = () => {
           selectedRowKey: "",
           profile: null,
         });
-        addLog(
-          "info",
-          "[MetaView] coverage_mRNA.csv not found in output directory. Click 'Load coverage_mRNA.csv' to generate it."
-        );
       }
     })();
 
@@ -537,6 +564,8 @@ export const MetaViewModule: React.FC = () => {
       cancelled = true;
     };
   }, [outputPath]);
+
+  const showPreAnalysisPlaceholder = !hasAnalyzed;
 
   return (
     <div className="w-full space-y-12 pb-24">
@@ -586,270 +615,273 @@ export const MetaViewModule: React.FC = () => {
         </div>
       </header>
 
-      <section className="bg-white border border-app-border rounded-2xl p-4 shadow-sm space-y-3">
-        <div className="space-y-3 pb-4 border-b border-app-border">
-          <label className="space-y-3 block">
-            <span className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-slate-500">
-              <FileSpreadsheet size={14} />
-              <span>Coverage CSV Path</span>
-            </span>
-            <input
-              value={csvPath}
-              readOnly
-              className="w-full bg-app-input border border-app-border rounded-lg px-3 py-2 text-xs text-slate-500 cursor-not-allowed outline-none focus:outline-none focus:ring-0 focus:border-app-border"
-              placeholder="D:\\...\\coverage_mRNA.csv"
-            />
-          </label>
-
-          {error && (
-            <div className="flex items-center gap-2 text-xs text-rose-600 bg-rose-50 border border-rose-200 rounded-lg px-3 py-2">
-              <AlertCircle size={14} />
-              <span>{error}</span>
-            </div>
-          )}
-        </div>
-
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-2 text-xs font-black uppercase tracking-wider text-slate-500">
-            <Table size={14} />
-            coverage_mRNA.csv
+      {error && (
+        <section className="bg-white border border-app-border rounded-2xl p-4 shadow-sm">
+          <div className="flex items-center gap-2 text-xs text-rose-600 bg-rose-50 border border-rose-200 rounded-lg px-3 py-2">
+            <AlertCircle size={14} />
+            <span>{error}</span>
           </div>
+        </section>
+      )}
 
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="relative min-w-[220px] w-[320px] max-w-full">
-              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input
-                value={searchInput}
-                onChange={(e) => setMetaViewData({ searchInput: e.target.value })}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    void handleSearch();
-                  }
-                }}
-                className="w-full bg-app-input border border-app-border rounded-lg pl-9 pr-3 py-2 text-xs"
-                placeholder="Search all columns..."
-              />
-            </div>
+      {showPreAnalysisPlaceholder ? (
+        <section className="h-96 w-full rounded-[2.5rem] border-2 border-dashed border-app-border flex flex-col items-center justify-center space-y-4">
+          <Dna size={48} className="text-slate-200" />
+          <p className="text-xs font-medium text-slate-400 italic">
+            No MetaView metrics found. Execute analysis pipeline.
+          </p>
+        </section>
+      ) : (
+        <>
+          <section className="bg-white border border-app-border rounded-2xl p-4 shadow-sm space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-2 text-xs font-black uppercase tracking-wider text-slate-500">
+                <Table size={14} />
+                coverage_mRNA.csv
+              </div>
 
-            <button
-              onClick={handleSearch}
-              disabled={isTableLoading || tableHeaders.length === 0}
-              className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${
-                isTableLoading || tableHeaders.length === 0
-                  ? "bg-slate-200 text-slate-500"
-                  : "bg-slate-800 text-white hover:bg-slate-700"
-              }`}
-            >
-              <Search size={14} />
-              Search
-            </button>
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="relative min-w-[220px] w-[320px] max-w-full">
+                  <Search
+                    size={14}
+                    className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+                  />
+                  <input
+                    value={searchInput}
+                    onChange={(e) => setMetaViewData({ searchInput: e.target.value })}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        void handleSearch();
+                      }
+                    }}
+                    className="w-full bg-app-input border border-app-border rounded-lg pl-9 pr-3 py-2 text-xs"
+                    placeholder="Search all columns..."
+                  />
+                </div>
 
-            {(searchInput || searchQuery) && (
-              <button
-                onClick={handleFirstLoad}
-                disabled={isTableLoading}
-                className="px-3 py-2 rounded-lg text-xs font-semibold border border-app-border text-slate-600 hover:bg-slate-50"
-              >
-                Clear
-              </button>
-            )}
-          </div>
-        </div>
+                <button
+                  onClick={handleSearch}
+                  disabled={isTableLoading || tableHeaders.length === 0}
+                  className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${
+                    isTableLoading || tableHeaders.length === 0
+                      ? "bg-slate-200 text-slate-500"
+                      : "bg-slate-800 text-white hover:bg-slate-700"
+                  }`}
+                >
+                  <Search size={14} />
+                  Search
+                </button>
 
-        <div className="relative overflow-auto max-h-[62vh] border border-app-border rounded-lg">
-          {tableHeaders.length === 0 ? (
-            <div className="p-4 text-xs text-slate-400 italic">
-              Load coverage_mRNA.csv to show table.
-            </div>
-          ) : (
-            <table className="min-w-full text-xs text-center">
-              <thead className="sticky top-0 bg-slate-100 z-10">
-                <tr>
-                  {tableHeaders.map((h) => (
-                    <th
-                      key={h}
-                      className="px-3 py-2 border-b border-app-border whitespace-nowrap text-center font-semibold text-slate-700"
-                    >
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {tableRows.length === 0 ? (
-                  <tr>
-                    <td
-                      colSpan={tableHeaders.length}
-                      className="px-3 py-6 text-center text-slate-400 italic border-b border-app-border/70"
-                    >
-                      No rows match the current search.
-                    </td>
-                  </tr>
-                ) : (
-                  tableRows.map((row, rowIdx) => {
-                    const tid = transcriptIdCol >= 0 ? row[transcriptIdCol] : "";
-                    const rowKey = `${page}-${rowIdx}`;
-                    const active = rowKey === selectedRowKey;
-                    const rowClass = active
-                      ? "bg-emerald-50"
-                      : rowIdx % 2 === 0
-                      ? "bg-white hover:bg-slate-50"
-                      : "bg-slate-50/70 hover:bg-slate-100/70";
-
-                    return (
-                      <tr key={`${rowIdx}-${tid}`} className={rowClass}>
-                        {row.map((cell, colIdx) => {
-                          const isTid = colIdx === transcriptIdCol;
-                          return (
-                            <td
-                              key={`${rowIdx}-${colIdx}`}
-                              className="px-3 py-1.5 border-b border-app-border/70 whitespace-nowrap text-slate-700 text-center align-middle"
-                            >
-                              {isTid ? (
-                                <button
-                                  onClick={() => loadProfileByTranscript(cell, rowKey)}
-                                  className={`w-full text-center font-semibold underline-offset-2 hover:underline ${
-                                    active ? "text-emerald-700" : "text-emerald-600"
-                                  }`}
-                                >
-                                  {cell}
-                                </button>
-                              ) : (
-                                colIdx === codonValCol ? formatCodonVal(cell) : cell
-                              )}
-                            </td>
-                          );
-                        })}
-                      </tr>
-                    );
-                  })
+                {(searchInput || searchQuery) && (
+                  <button
+                    onClick={handleFirstLoad}
+                    disabled={isTableLoading}
+                    className="px-3 py-2 rounded-lg text-xs font-semibold border border-app-border text-slate-600 hover:bg-slate-50"
+                  >
+                    Clear
+                  </button>
                 )}
-              </tbody>
-            </table>
-          )}
-
-          {isTableLoading && (
-            <div className="absolute inset-0 z-20 bg-white/70 backdrop-blur-[1px] flex items-center justify-center">
-              <div className="inline-flex items-center gap-2 rounded-lg px-3 py-2 bg-white border border-app-border text-xs text-slate-600 shadow-sm">
-                <LoaderCircle size={14} className="animate-spin" />
-                Loading page...
               </div>
             </div>
-          )}
-        </div>
 
-        {tableHeaders.length > 0 && totalPages > 0 && (
-          <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
-            <div className="flex flex-wrap items-center gap-1">
-              {paginationItems.map((item, idx) =>
-                item === "ellipsis" ? (
-                  <span key={`ellipsis-${idx}`} className="px-2 py-1 text-xs text-slate-400">
-                    ...
-                  </span>
-                ) : (
-                  <button
-                    key={`page-${item}`}
-                    disabled={isTableLoading}
-                    onClick={() => {
-                      void jumpToPage(item);
-                    }}
-                    className={`min-w-8 px-2.5 py-1.5 rounded-md text-xs border transition-colors ${
-                      item === page
-                        ? "bg-emerald-600 text-white border-emerald-600"
-                        : "border-app-border text-slate-700 hover:bg-slate-50"
-                    } disabled:opacity-50`}
-                  >
-                    {item}
-                  </button>
-                )
+            <div className="relative overflow-auto max-h-[62vh] border border-app-border rounded-lg">
+              {tableHeaders.length === 0 ? (
+                <div className="p-4 text-xs text-slate-400 italic">
+                  Load coverage_mRNA.csv to show table.
+                </div>
+              ) : (
+                <table className="min-w-full text-xs text-center">
+                  <thead className="sticky top-0 bg-slate-100 z-10">
+                    <tr>
+                      {tableHeaders.map((h) => (
+                        <th
+                          key={h}
+                          className="px-3 py-2 border-b border-app-border whitespace-nowrap text-center font-semibold text-slate-700"
+                        >
+                          {h}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {tableRows.length === 0 ? (
+                      <tr>
+                        <td
+                          colSpan={tableHeaders.length}
+                          className="px-3 py-6 text-center text-slate-400 italic border-b border-app-border/70"
+                        >
+                          No rows match the current search.
+                        </td>
+                      </tr>
+                    ) : (
+                      tableRows.map((row, rowIdx) => {
+                        const tid = transcriptIdCol >= 0 ? row[transcriptIdCol] : "";
+                        const rowKey = `${page}-${rowIdx}`;
+                        const active = rowKey === selectedRowKey;
+                        const rowClass = active
+                          ? "bg-emerald-50"
+                          : rowIdx % 2 === 0
+                          ? "bg-white hover:bg-slate-50"
+                          : "bg-slate-50/70 hover:bg-slate-100/70";
+
+                        return (
+                          <tr key={`${rowIdx}-${tid}`} className={rowClass}>
+                            {row.map((cell, colIdx) => {
+                              const isTid = colIdx === transcriptIdCol;
+                              return (
+                                <td
+                                  key={`${rowIdx}-${colIdx}`}
+                                  className="px-3 py-1.5 border-b border-app-border/70 whitespace-nowrap text-slate-700 text-center align-middle"
+                                >
+                                  {isTid ? (
+                                    <button
+                                      onClick={() => loadProfileByTranscript(cell, rowKey)}
+                                      className={`w-full text-center font-semibold underline-offset-2 hover:underline ${
+                                        active ? "text-emerald-700" : "text-emerald-600"
+                                      }`}
+                                    >
+                                      {cell}
+                                    </button>
+                                  ) : (
+                                    colIdx === codonValCol ? formatCodonVal(cell) : cell
+                                  )}
+                                </td>
+                              );
+                            })}
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              )}
+
+              {isTableLoading && (
+                <div className="absolute inset-0 z-20 bg-white/70 backdrop-blur-[1px] flex items-center justify-center">
+                  <div className="inline-flex items-center gap-2 rounded-lg px-3 py-2 bg-white border border-app-border text-xs text-slate-600 shadow-sm">
+                    <LoaderCircle size={14} className="animate-spin" />
+                    Loading page...
+                  </div>
+                </div>
               )}
             </div>
 
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-slate-500">Page</span>
-              <input
-                value={jumpPageInput}
-                onChange={(e) => setMetaViewData({ jumpPageInput: e.target.value })}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    void handleJumpSubmit();
-                  }
-                }}
-                className="w-20 border border-app-border rounded px-2 py-1 text-xs text-center bg-white"
-                placeholder={`${page}`}
-              />
+            {tableHeaders.length > 0 && totalPages > 0 && (
+              <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+                <div className="flex flex-wrap items-center gap-1">
+                  {paginationItems.map((item, idx) =>
+                    item === "ellipsis" ? (
+                      <span key={`ellipsis-${idx}`} className="px-2 py-1 text-xs text-slate-400">
+                        ...
+                      </span>
+                    ) : (
+                      <button
+                        key={`page-${item}`}
+                        disabled={isTableLoading}
+                        onClick={() => {
+                          void jumpToPage(item);
+                        }}
+                        className={`min-w-8 px-2.5 py-1.5 rounded-md text-xs border transition-colors ${
+                          item === page
+                            ? "bg-emerald-600 text-white border-emerald-600"
+                            : "border-app-border text-slate-700 hover:bg-slate-50"
+                        } disabled:opacity-50`}
+                      >
+                        {item}
+                      </button>
+                    )
+                  )}
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-slate-500">Page</span>
+                  <input
+                    value={jumpPageInput}
+                    onChange={(e) => setMetaViewData({ jumpPageInput: e.target.value })}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        void handleJumpSubmit();
+                      }
+                    }}
+                    className="w-20 border border-app-border rounded px-2 py-1 text-xs text-center bg-white"
+                    placeholder={`${page}`}
+                  />
+                  <button
+                    disabled={isTableLoading}
+                    onClick={() => {
+                      void handleJumpSubmit();
+                    }}
+                    className="px-3 py-1.5 rounded border border-app-border text-xs text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                  >
+                    Jump
+                  </button>
+                </div>
+              </div>
+            )}
+          </section>
+
+          <section className="bg-white border border-app-border rounded-2xl p-3 shadow-sm">
+            <div className="px-2 pb-2 flex items-center justify-between">
+              <div className="text-xs font-black uppercase tracking-wider text-slate-500">
+                Coverage Charts
+              </div>
               <button
-                disabled={isTableLoading}
                 onClick={() => {
-                  void handleJumpSubmit();
+                  setSelectedPlots(["meta-view-bar-svg", "meta-view-line-svg"]);
+                  setShowExportModal(true);
                 }}
-                className="px-3 py-1.5 rounded border border-app-border text-xs text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                disabled={!profile || isChartLoading}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-[10px] font-bold border transition-all ${
+                  !profile || isChartLoading
+                    ? "bg-slate-200 text-slate-500 border-slate-200"
+                    : "bg-stone-100 border-app-border text-slate-700 hover:bg-emerald-600 hover:text-white"
+                }`}
               >
-                Jump
+                <Download size={12} />
+                Export
               </button>
             </div>
-          </div>
-        )}
-      </section>
 
-      <section className="bg-white border border-app-border rounded-2xl p-3 shadow-sm">
-        <div className="px-2 pb-2 flex items-center justify-between">
-          <div className="text-xs font-black uppercase tracking-wider text-slate-500">Coverage Charts</div>
-          <button
-            onClick={() => {
-              setSelectedPlots(["meta-view-bar-svg", "meta-view-line-svg"]);
-              setShowExportModal(true);
-            }}
-            disabled={!profile || isChartLoading}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-[10px] font-bold border transition-all ${
-              !profile || isChartLoading
-                ? "bg-slate-200 text-slate-500 border-slate-200"
-                : "bg-stone-100 border-app-border text-slate-700 hover:bg-emerald-600 hover:text-white"
-            }`}
-          >
-            <Download size={12} />
-            Export
-          </button>
-        </div>
-
-        {isChartLoading ? (
-          <div className="h-72 flex items-center justify-center px-6">
-            <div className="w-full max-w-lg space-y-2">
-              <div className="flex items-center justify-between text-xs text-slate-500">
-                <span className="inline-flex items-center gap-2">
-                  <LoaderCircle size={14} className="animate-spin" />
-                  Loading chart...
-                </span>
-                <span className="font-semibold text-slate-600">
-                  {Math.min(100, Math.max(0, Math.round(chartLoadProgress)))}%
-                </span>
+            {isChartLoading ? (
+              <div className="h-72 flex items-center justify-center px-6">
+                <div className="w-full max-w-lg space-y-2">
+                  <div className="flex items-center justify-between text-xs text-slate-500">
+                    <span className="inline-flex items-center gap-2">
+                      <LoaderCircle size={14} className="animate-spin" />
+                      Loading chart...
+                    </span>
+                    <span className="font-semibold text-slate-600">
+                      {Math.min(100, Math.max(0, Math.round(chartLoadProgress)))}%
+                    </span>
+                  </div>
+                  <div className="h-2 w-full rounded-full bg-slate-200 overflow-hidden">
+                    <div
+                      className="h-full rounded-full bg-emerald-500 transition-[width] duration-200 ease-out"
+                      style={{ width: `${Math.max(4, Math.min(100, chartLoadProgress))}%` }}
+                    />
+                  </div>
+                </div>
               </div>
-              <div className="h-2 w-full rounded-full bg-slate-200 overflow-hidden">
-                <div
-                  className="h-full rounded-full bg-emerald-500 transition-[width] duration-200 ease-out"
-                  style={{ width: `${Math.max(4, Math.min(100, chartLoadProgress))}%` }}
-                />
+            ) : profile ? (
+              <div className="space-y-7">
+                <div className="border border-app-border rounded-2xl p-2">
+                  <D3MetaViewChart id="meta-view-bar-svg" profile={profile} chartType="bar" />
+                </div>
+                <div className="border border-app-border rounded-2xl p-2">
+                  <D3MetaViewChart id="meta-view-line-svg" profile={profile} chartType="line" />
+                </div>
               </div>
-            </div>
-          </div>
-        ) : profile ? (
-          <div className="space-y-7">
-            <div className="border border-app-border rounded-2xl p-2">
-              <D3MetaViewChart id="meta-view-bar-svg" profile={profile} chartType="bar" />
-            </div>
-            <div className="border border-app-border rounded-2xl p-2">
-              <D3MetaViewChart id="meta-view-line-svg" profile={profile} chartType="line" />
-            </div>
-          </div>
-        ) : (
-          <div className="h-72 flex items-center justify-center text-slate-400 text-sm">
-            <div className="flex items-center gap-2">
-              <FlaskConical size={16} />
-              <span>Click transcript_id in table to render charts.</span>
-            </div>
-          </div>
-        )}
-      </section>
+            ) : (
+              <div className="h-72 flex items-center justify-center text-slate-400 text-sm">
+                <div className="flex items-center gap-2">
+                  <FlaskConical size={16} />
+                  <span>Click transcript_id in table to render charts.</span>
+                </div>
+              </div>
+            )}
+          </section>
+        </>
+      )}
 
       <AnimatePresence>
         {showExportModal && (

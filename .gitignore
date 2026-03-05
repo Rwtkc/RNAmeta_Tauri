@@ -22,3 +22,9 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Local bundled runtimes / large bioinformatics resources
+src-tauri/resources/JDK17/
+src-tauri/resources/Trimmomatic/
+src-tauri/resources/*.fastq.gz
+src-tauri/resources/*.fq.gz

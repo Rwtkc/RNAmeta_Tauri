@@ -7,6 +7,7 @@ interface ConfigState {
   outputPath: string;
   bamPath: string;
   species: string;
+  seqType: "" | "monosome" | "disome";
   isIndexFound: boolean;
   isOffsetsConfFound: boolean;
   isTxlensFound: boolean;
@@ -16,6 +17,7 @@ interface ConfigState {
   setOutputPath: (path: string) => void;
   setBamPath: (path: string) => void;
   setSpecies: (species: string) => void;
+  setSeqType: (seqType: "" | "monosome" | "disome") => void;
   setIsIndexFound: (found: boolean) => void;
   setIsOffsetsConfFound: (found: boolean) => void;
   setIsTxlensFound: (found: boolean) => void;
@@ -29,6 +31,7 @@ export const useConfigStore = create<ConfigState>()(
       outputPath: "",
       bamPath: "",
       species: "osa_IRGSP_1",
+      seqType: "",
       isIndexFound: false,
       isOffsetsConfFound: false,
       isTxlensFound: false,
@@ -38,6 +41,7 @@ export const useConfigStore = create<ConfigState>()(
       setOutputPath: (path) => set({ outputPath: path }),
       setBamPath: (path) => set({ bamPath: path }),
       setSpecies: (species) => set({ species }),
+      setSeqType: (seqType) => set({ seqType }),
       setIsIndexFound: (found) => set({ isIndexFound: found }),
       setIsOffsetsConfFound: (found) => set({ isOffsetsConfFound: found }),
       setIsTxlensFound: (found) => set({ isTxlensFound: found }),

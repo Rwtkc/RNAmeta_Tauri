@@ -19,7 +19,7 @@ import { svg2pdf } from "svg2pdf.js";
 import JSZip from 'jszip';
 
 export const PsiteModule: React.FC = () => {
-  const { bamPath, dbPath, outputPath, species, isIndexFound } = useConfigStore();
+  const { bamPath, dbPath, outputPath, species, seqType, isIndexFound } = useConfigStore();
   const { setExpanded, addLog } = useLogStore(); 
   const { runRScript, isRunning } = useRAnalysis();
   
@@ -43,7 +43,7 @@ export const PsiteModule: React.FC = () => {
     format: 'png' as 'png' | 'pdf'
   });
 
-  const isProjectReady = !!(bamPath && dbPath && outputPath && species && isIndexFound);
+  const isProjectReady = !!(bamPath && dbPath && outputPath && species && seqType && isIndexFound);
 
   const parseTsv = (text: string) => {
     const lines = text.trim().split('\n');
@@ -65,7 +65,7 @@ export const PsiteModule: React.FC = () => {
     try {
       const scriptId = 'ribo_psite_calib';
       const TXLENS_PATH = await join(dbPath, `${species}.txlens.rda`);
-      const args = ["--bam", bamPath, "--txlens", TXLENS_PATH, "--outdir", outputPath, "--species", species];
+      const args = ["--bam", bamPath, "--txlens", TXLENS_PATH, "--outdir", outputPath, "--species", species, "--seqType", seqType];
       
       await runRScript(scriptId, args);
       await loadResults();

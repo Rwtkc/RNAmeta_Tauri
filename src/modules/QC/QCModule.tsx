@@ -21,7 +21,7 @@ import { svg2pdf } from "svg2pdf.js";
 import JSZip from 'jszip';
 
 export const QCModule: React.FC = () => {
-  const { bamPath, dbPath, outputPath, species, isIndexFound, isOffsetsConfFound } = useConfigStore();
+  const { bamPath, dbPath, outputPath, species, seqType, isIndexFound, isOffsetsConfFound } = useConfigStore();
   const { setExpanded, addLog } = useLogStore();
   const { runRScript, isRunning } = useRAnalysis();
   const { hasAnalyzed, frameData, lengthFrameData, metaProfileData, occupancyBinData, occupancyStartData, occupancyEndData, setQCData } = useQCStore();
@@ -34,7 +34,7 @@ export const QCModule: React.FC = () => {
   const [isExporting, setIsExporting] = useState(false);
   const [exportProgress, setExportProgress] = useState({ current: 0, total: 0 });
 
-  const isProjectReady = !!(bamPath && dbPath && outputPath && species && isIndexFound && isOffsetsConfFound);
+  const isProjectReady = !!(bamPath && dbPath && outputPath && species && seqType && isIndexFound && isOffsetsConfFound);
 
   const parseTsv = (text: string) => {
     const lines = text.trim().split('\n');

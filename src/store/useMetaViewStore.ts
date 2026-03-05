@@ -17,6 +17,7 @@ export interface MetaViewCoverageProfile {
 }
 
 interface MetaViewState {
+  hasAnalyzed: boolean;
   csvPath: string;
   loadedCsvPath: string;
   tableHeaders: string[];
@@ -35,6 +36,7 @@ interface MetaViewState {
 }
 
 const initialState = {
+  hasAnalyzed: false,
   csvPath: "",
   loadedCsvPath: "",
   tableHeaders: [],
@@ -54,4 +56,3 @@ export const useMetaViewStore = create<MetaViewState>((set) => ({
   setMetaViewData: (data) => set((state) => ({ ...state, ...data })),
   resetMetaViewData: () => set({ ...initialState }),
 }));
-

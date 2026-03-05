@@ -1,149 +1,295 @@
-// src/modules/About/AboutModule.tsx
-import React from 'react';
-import { motion } from 'framer-motion';
-import { 
+import React from "react";
+import { motion } from "framer-motion";
+import {
+  Activity,
+  AlertTriangle,
   BookOpen,
-  Cpu, Microscope, Heart,
-  ShieldCheck, Command, Layers, BarChart2, Database
-} from 'lucide-react';
-import { open } from '@tauri-apps/plugin-shell';
+  CheckCircle2,
+  Cpu,
+  Database,
+  Download,
+  FolderTree,
+  Heart,
+  HelpCircle,
+  Layers,
+  LineChart,
+  Microscope,
+  PlayCircle,
+  ShieldCheck,
+} from "lucide-react";
+import { open } from "@tauri-apps/plugin-shell";
+
+const GITHUB_URL = "https://github.com/Rwtkc/RiboMeta";
+
+const WORKFLOW = [
+  {
+    module: "Project Configuration",
+    purpose:
+      "Define species, alignment input, reference library, and output location before any downstream analysis.",
+  },
+  {
+    module: "P-site Calibration",
+    purpose:
+      "Estimate read-length-specific offsets and generate calibrated positioning rules for ribosome footprints.",
+  },
+  {
+    module: "Quality Control",
+    purpose:
+      "Assess frame periodicity, metagene behavior, and occupancy summaries to validate library quality.",
+  },
+  {
+    module: "Codon",
+    purpose:
+      "Profile codon-level occupancy across ribosomal sites and inspect codon-resolved meta-profiles.",
+  },
+  {
+    module: "MetaView",
+    purpose:
+      "Browse transcript coverage tables and render transcript-specific coverage trajectories.",
+  },
+  {
+    module: "ORF Pause",
+    purpose:
+      "Evaluate translated ORF candidates and detect high-confidence pause events with transcript tracks.",
+  },
+];
+
+const REQUIRED_INPUTS = [
+  "Aligned RPF BAM file with matching BAI index.",
+  "Species reference library containing <species>.txlens.rda and <species>.txdb.fa.",
+  "Offset configuration (offsets.conf.txt), from either library or output directory.",
+  "ORF candidate catalog for ORF Pause (<species>.candidateORF3.txt).",
+  "coverage_mRNA.csv is used by multiple modules and can be generated when prerequisites are complete.",
+];
+
+const OUTPUTS = [
+  {
+    module: "P-site",
+    files: "saturation.gene.txt, psite.txt, psite_stopcodon.txt, offsets.conf.txt",
+  },
+  {
+    module: "Quality Control",
+    files:
+      "frameStat.txt, frameStatByLength.txt, psite_metaprofile.txt, occupancy_metagene_bin.txt, occupancy_metagene_start.txt, occupancy_metagene_end.txt, coverage_mRNA.csv",
+  },
+  {
+    module: "Codon",
+    files: "usage.txt, codon_occupancy.txt",
+  },
+  {
+    module: "MetaView",
+    files: "Interactive table/chart loading from coverage_mRNA.csv",
+  },
+  {
+    module: "ORF Pause",
+    files: "all.input.parameters.txt, orfcall.parameters.txt, pause.txt",
+  },
+];
+
+const INTERPRETATION_NOTES = [
+  {
+    metric: "ORFscore",
+    note: "Higher values generally indicate stronger frame-biased translation evidence.",
+  },
+  {
+    metric: "-log10(pvalue)",
+    note: "Larger values correspond to stronger statistical support (smaller p-values).",
+  },
+  {
+    metric: "Pause ratio",
+    note: "Represents local enrichment relative to neighborhood background; ratio > 10 marks strong pause candidates.",
+  },
+];
+
+const FAQ = [
+  {
+    q: "Why can ORFs be detected while no pause sites are shown?",
+    a: "ORF detection and pause detection apply different criteria. An ORF can pass translation evidence thresholds without any position crossing the pause ratio cutoff.",
+  },
+  {
+    q: "What does 'No pause sites with ratio > 10 in current window' mean?",
+    a: "No coordinates in the current zoom range satisfy the pause threshold. Reset zoom or inspect another transcript.",
+  },
+  {
+    q: "Why are results cleared after changing species or output settings?",
+    a: "Result views are reset when core analysis context changes, preventing interpretation of mismatched historical outputs.",
+  },
+  {
+    q: "What should be checked first when the environment is not ready?",
+    a: "Verify BAM/BAI pairing, species annotation files, offset configuration, and output write permissions.",
+  },
+];
+
+const EXPORT_NOTES = [
+  "Figure export supports PNG and PDF.",
+  "Batch export packages multiple selected views into ZIP.",
+  "Width, height, and DPI settings help standardize publication-ready output.",
+];
+
+const handleOpenLink = async (url: string) => {
+  try {
+    await open(url);
+  } catch (error) {
+    console.error("Failed to open external link:", error);
+  }
+};
 
 export const AboutModule: React.FC = () => {
-  const GITHUB_URL = "https://github.com/Rwtkc/RiboMeta"; 
-
-  const handleOpenLink = async (url: string) => {
-    try {
-      await open(url);
-    } catch (error) {
-      console.error("Failed to open external link:", error);
-    }
-  };
-
   return (
-    <motion.div 
-      initial={{ opacity: 0, y: 12 }} 
-      animate={{ opacity: 1, y: 0 }} 
-      className="max-w-4xl mx-auto space-y-16 pb-24"
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="max-w-5xl mx-auto space-y-10 pb-24"
     >
       <section className="text-center py-8">
         <div className="inline-flex p-5 bg-emerald-50 rounded-[2rem] border border-emerald-100 mb-2">
-          <ActivityIcon size={44} className="text-ribo-primary" />
+          <Activity size={42} className="text-ribo-primary" />
         </div>
-        <div className="space-y-2">
-          <h1 className="text-4xl font-bold text-app-text tracking-tight font-serif italic">
-            RiboMeta Engine
-          </h1>
-          <div className="flex items-center justify-center gap-4 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">
-            <span>Version 0.1.0 Alpha</span>
-            <span className="w-1 h-1 bg-slate-300 rounded-full" />
-            <span className="flex items-center gap-1 text-emerald-600">
-              <ShieldCheck size={12} /> Academic Licensed
-            </span>
+        <h1 className="text-4xl font-bold text-app-text tracking-tight font-serif italic">
+          About & Help
+        </h1>
+        <p className="mt-2 text-xs text-slate-500">
+          Scientific user guide for complete RiboMeta analysis workflows
+        </p>
+        <div className="mt-3 inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] text-emerald-600">
+          <ShieldCheck size={12} />
+          Academic research workflow
+        </div>
+      </section>
+
+      <section className="bg-white border border-app-border rounded-2xl p-6 shadow-sm space-y-4">
+        <SectionHeader icon={<Cpu size={15} />} title="Platform Scope" />
+        <p className="text-sm text-slate-700 leading-relaxed">
+          RiboMeta is an integrated environment for ribosome profiling interpretation, from
+          calibration and quality assessment to codon behavior, transcript coverage review, and ORF
+          pause evidence exploration.
+        </p>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+          <Tag icon={<Microscope size={12} />} text="Designed for translational profiling studies" />
+          <Tag icon={<Layers size={12} />} text="Module-driven workflow with coherent data flow" />
+          <Tag icon={<LineChart size={12} />} text="Interactive visual analytics for biological interpretation" />
+        </div>
+      </section>
+
+      <section className="bg-white border border-app-border rounded-2xl p-6 shadow-sm space-y-5">
+        <SectionHeader icon={<PlayCircle size={15} />} title="Recommended Workflow" />
+        <div className="space-y-3">
+          {WORKFLOW.map((item, idx) => (
+            <div key={item.module} className="rounded-xl border border-app-border bg-slate-50/70 px-4 py-3">
+              <div className="text-xs font-bold text-slate-700">
+                {idx + 1}. {item.module}
+              </div>
+              <div className="text-xs text-slate-600 mt-1 leading-relaxed">{item.purpose}</div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="bg-white border border-app-border rounded-2xl p-6 shadow-sm space-y-4">
+          <SectionHeader icon={<FolderTree size={15} />} title="Required Inputs" />
+          <ul className="space-y-2 text-xs text-slate-600 leading-relaxed">
+            {REQUIRED_INPUTS.map((item) => (
+              <li key={item} className="flex items-start gap-2">
+                <CheckCircle2 size={12} className="mt-0.5 text-emerald-600 shrink-0" />
+                <span>{item}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        <div className="bg-white border border-app-border rounded-2xl p-6 shadow-sm space-y-4">
+          <SectionHeader icon={<Database size={15} />} title="Output Map" />
+          <div className="space-y-2">
+            {OUTPUTS.map((item) => (
+              <div key={item.module} className="rounded-lg border border-app-border px-3 py-2 bg-slate-50/60">
+                <div className="text-xs font-semibold text-slate-700">{item.module}</div>
+                <div className="text-[11px] text-slate-600 mt-1 leading-relaxed">{item.files}</div>
+              </div>
+            ))}
           </div>
         </div>
       </section>
 
-      <section className="bg-white border-2 border-app-border rounded-[2.5rem] p-12 shadow-sm relative group overflow-hidden">
-        <div className="absolute top-0 right-0 p-10 opacity-[0.03] group-hover:opacity-[0.05] transition-opacity pointer-events-none">
-          <Microscope size={200} />
-        </div>
-        <div className="relative z-10 space-y-6">
-          <div className="flex items-center gap-3 text-ribo-primary">
-            <Cpu size={20} />
-            <h2 className="text-xs font-black uppercase tracking-widest">System Architecture & Philosophy</h2>
+      <section className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="bg-white border border-app-border rounded-2xl p-6 shadow-sm space-y-4">
+          <SectionHeader icon={<HelpCircle size={15} />} title="Interpretation Guide" />
+          <div className="space-y-2">
+            {INTERPRETATION_NOTES.map((item) => (
+              <div key={item.metric} className="rounded-lg border border-app-border bg-slate-50 px-3 py-2">
+                <div className="text-xs font-semibold text-slate-700">{item.metric}</div>
+                <div className="text-[11px] text-slate-600 mt-1 leading-relaxed">{item.note}</div>
+              </div>
+            ))}
           </div>
-          <p className="text-xl font-serif leading-relaxed text-slate-700 italic max-w-4xl">
-            "RiboMeta is a specialized analytical ecosystem engineered to decode the hidden complexities of the translatome. By combining high-fidelity R-scripts with a precision-driven D3 visualization engine, it transforms raw Ribo-seq data into publication-ready scientific narratives."
-          </p>
+        </div>
+
+        <div className="bg-white border border-app-border rounded-2xl p-6 shadow-sm space-y-4">
+          <SectionHeader icon={<Download size={15} />} title="Export Notes" />
+          <ul className="space-y-2 text-xs text-slate-600 leading-relaxed">
+            {EXPORT_NOTES.map((item) => (
+              <li key={item} className="flex items-start gap-2">
+                <BookOpen size={12} className="mt-0.5 text-emerald-600 shrink-0" />
+                <span>{item}</span>
+              </li>
+            ))}
+          </ul>
         </div>
       </section>
 
-      <section className="space-y-10">
-        <div className="flex items-center gap-6 px-2">
-           <div className="h-px flex-1 bg-app-border" />
-           <div className="flex items-center gap-2 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">
-             <BookOpen size={14} /> Analysis Workflow
-           </div>
-           <div className="h-px flex-1 bg-app-border" />
-        </div>
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-          <GuideCard 
-            icon={<Command size={20}/>}
-            title="Project Configuration" 
-            desc="Map your RPF alignments (.bam) to corresponding reference libraries. Automated heartbeats monitor index and configuration integrity."
-          />
-          <GuideCard 
-            icon={<Layers size={20}/>}
-            title="P-site Stratification" 
-            desc="Calibrate nucleotide offsets across fragment populations using dual-anchor landmarks for precision mapping."
-          />
-          <GuideCard 
-            icon={<BarChart2 size={20}/>}
-            title="Quality Control" 
-            desc="Evaluate triplet periodicity and meta-gene coverage to ensure the biological fidelity of captured ribosome footprints."
-          />
-          <GuideCard 
-            icon={<Database size={20}/>}
-            title="Codon Dynamics" 
-            desc="Explore codon-level occupancy and metacodon profiles to quantify translational pausing and elongation kinetics."
-          />
+      <section className="bg-white border border-app-border rounded-2xl p-6 shadow-sm space-y-4">
+        <SectionHeader icon={<HelpCircle size={15} />} title="FAQ" />
+        <div className="space-y-3">
+          {FAQ.map((item) => (
+            <details
+              key={item.q}
+              className="rounded-xl border border-app-border px-4 py-3 bg-slate-50/70 open:border-emerald-200"
+            >
+              <summary className="cursor-pointer list-none text-sm font-semibold text-slate-700">
+                {item.q}
+              </summary>
+              <p className="mt-2 text-xs text-slate-600 leading-relaxed">{item.a}</p>
+            </details>
+          ))}
         </div>
       </section>
 
-      <footer className="flex flex-col md:flex-row items-center justify-between gap-8 pt-12 border-t border-app-border px-4">
-        <div className="flex items-center gap-10">
-          <button 
-            onClick={() => handleOpenLink(GITHUB_URL)}
-            className="flex items-center gap-2.5 text-sm font-bold text-app-text hover:text-ribo-primary transition-all cursor-pointer group"
-          >
-            <GitHubMarkIcon size={20} className="group-hover:scale-110 transition-transform" /> 
-            Source Repository
-          </button>
-          <div className="flex items-center gap-2.5 text-[11px] text-slate-400 font-medium italic">
-            <Heart size={14} className="text-rose-400" fill="currentColor" />
-            Designed for the Global Genomics Community
-          </div>
-        </div>
-        
-        <div className="px-5 py-2.5 bg-stone-50 rounded-2xl border border-app-border text-[10px] font-mono text-slate-500 font-bold">
-          OPEN-SOURCE / MIT LICENSE
+      <section className="bg-amber-50/70 border border-amber-200 rounded-2xl p-6 shadow-sm space-y-3">
+        <SectionHeader icon={<AlertTriangle size={15} />} title="Research Use Notice" />
+        <p className="text-xs text-amber-900 leading-relaxed">
+          This software is intended for research analysis and hypothesis generation. Key biological
+          findings should be validated with replicate evidence, annotation consistency, and
+          independent confirmation.
+        </p>
+      </section>
+
+      <footer className="flex flex-col md:flex-row items-center justify-between gap-6 pt-6 border-t border-app-border px-1">
+        <button
+          onClick={() => handleOpenLink(GITHUB_URL)}
+          className="inline-flex items-center gap-2 text-sm font-bold text-app-text hover:text-ribo-primary transition-colors"
+        >
+          <BookOpen size={16} />
+          Source Repository
+        </button>
+        <div className="inline-flex items-center gap-2 text-[11px] text-slate-500 italic">
+          <Heart size={13} className="text-rose-400" fill="currentColor" />
+          Professional software for translational biology workflows
         </div>
       </footer>
     </motion.div>
   );
 };
 
-
-const GuideCard = ({ icon, title, desc }: any) => (
-  <div className="p-10 bg-white border-2 border-app-border rounded-[2rem] hover:border-emerald-500/30 transition-all group">
-    <div className="flex items-center gap-5 mb-5">
-      <div className="p-3 bg-stone-50 rounded-2xl text-slate-400 group-hover:text-ribo-primary group-hover:bg-emerald-50 transition-all">
-        {icon}
-      </div>
-      <h3 className="text-base font-bold text-app-text tracking-tight">{title}</h3>
-    </div>
-    <p className="text-xs text-slate-500 leading-relaxed font-medium">
-      {desc}
-    </p>
+const SectionHeader = ({ icon, title }: { icon: React.ReactNode; title: string }) => (
+  <div className="flex items-center gap-2 text-slate-700">
+    <span className="text-emerald-600">{icon}</span>
+    <h2 className="text-sm font-black uppercase tracking-wider">{title}</h2>
   </div>
 );
 
-const ActivityIcon = ({ size, className }: any) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={className}>
-    <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
-  </svg>
-);
-
-const GitHubMarkIcon = ({ size, className }: any) => (
-  <svg
-    width={size}
-    height={size}
-    viewBox="0 0 24 24"
-    fill="currentColor"
-    className={className}
-    aria-hidden="true"
-  >
-    <path d="M12 .297C5.37.297 0 5.667 0 12.297c0 5.303 3.438 9.8 8.205 11.387.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.726-4.042-1.61-4.042-1.61-.546-1.386-1.333-1.755-1.333-1.755-1.09-.745.084-.729.084-.729 1.204.085 1.838 1.237 1.838 1.237 1.07 1.833 2.809 1.304 3.495.997.108-.775.418-1.305.762-1.605-2.665-.304-5.467-1.333-5.467-5.93 0-1.31.467-2.381 1.235-3.221-.124-.303-.535-1.526.117-3.176 0 0 1.008-.322 3.3 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.29-1.552 3.297-1.23 3.297-1.23.653 1.65.242 2.873.118 3.176.77.84 1.233 1.911 1.233 3.221 0 4.609-2.807 5.623-5.48 5.921.43.372.814 1.102.814 2.222 0 1.606-.015 2.902-.015 3.297 0 .32.216.694.825.576C20.565 22.093 24 17.597 24 12.297 24 5.667 18.627.297 12 .297z" />
-  </svg>
+const Tag = ({ icon, text }: { icon: React.ReactNode; text: string }) => (
+  <div className="rounded-lg border border-app-border bg-slate-50 px-3 py-2 text-slate-600 flex items-start gap-2">
+    <span className="text-emerald-600 mt-0.5">{icon}</span>
+    <span>{text}</span>
+  </div>
 );

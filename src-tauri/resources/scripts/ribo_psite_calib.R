@@ -26,7 +26,7 @@ parse_args <- function(args) {
 }
 
 params <- parse_args(args)
-required_params <- c("bam", "txlens", "outdir", "species")
+required_params <- c("bam", "txlens", "outdir", "species", "seqType")
 missing <- setdiff(required_params, names(params))
 if (length(missing) > 0) {
   stop(paste("[ERROR] Missing required arguments:", paste(missing, collapse = ", ")))
@@ -36,6 +36,11 @@ BAM_FILE <- params$bam
 TXLENS_FILE  <- params$txlens
 RESULT_DIR <- params$outdir
 SPECIES_NAME <- params$species
+SEQ_TYPE <- tolower(params$seqType)
+
+if (!(SEQ_TYPE %in% c("monosome", "disome"))) {
+  stop("[ERROR] Invalid --seqType. Use 'monosome' or 'disome'.")
+}
 
 if (!dir.exists(RESULT_DIR)) dir.create(RESULT_DIR, recursive = TRUE)
 
@@ -45,9 +50,11 @@ load_to_var <- function(file_path) {
   return(temp_env[[vars[1]]])
 }
 
-psite_plot_data <- function(dt, species, result_dir) {
+psite_plot_data <- function(dt, species, seq_type, result_dir) {
   cat("[PROGRESS] 30% | Calculating distribution (Vectorized)...\n")
   is_prokaryote <- species %in% c("ecoli_k12", "bsu_168", "pfu_dsm_3638", "hsa_NRC1")
+  start_window <- if (seq_type == "monosome") c(-25, 50) else c(-60, 50)
+  stop_window <- if (seq_type == "monosome") c(-50, 25) else c(-60, 25)
   
   if(is_prokaryote) {
     dt[, `:=`(site_dist_end5 = end - start_pos, site_dist_end3 = end - stop_pos)]
@@ -55,9 +62,9 @@ psite_plot_data <- function(dt, species, result_dir) {
     dt[, `:=`(site_dist_end5 = start - start_pos, site_dist_end3 = start - stop_pos)]
   }
   
-  res5 <- dt[site_dist_end5 %between% c(-25, 50), .N, by = .(qwidth, site_dist_end5)]
+  res5 <- dt[site_dist_end5 %between% start_window, .N, by = .(qwidth, site_dist_end5)]
   setnames(res5, c("length", "distance", "reads"))
-  all_coords5 <- CJ(length = unique(dt$qwidth), distance = -25:50)
+  all_coords5 <- CJ(length = unique(dt$qwidth), distance = start_window[1]:start_window[2])
   res5 <- res5[all_coords5, on = .(length, distance)][is.na(reads), reads := 0]
   
   res5 <- res5[order(length, distance)]
@@ -65,14 +72,48 @@ psite_plot_data <- function(dt, species, result_dir) {
   fwrite(res5[, .(distance, reads, length)], file = file.path(result_dir, "psite.txt"), sep="\t")
   
   cat("[PROGRESS] 50% | Aggregating Stop-codon regions...\n")
-  res3 <- dt[site_dist_end3 %between% c(-50, 25), .N, by = .(qwidth, site_dist_end3)]
+  res3 <- dt[site_dist_end3 %between% stop_window, .N, by = .(qwidth, site_dist_end3)]
   setnames(res3, c("length", "distance", "reads"))
-  all_coords3 <- CJ(length = unique(dt$qwidth), distance = -50:25)
+  all_coords3 <- CJ(length = unique(dt$qwidth), distance = stop_window[1]:stop_window[2])
   res3 <- res3[all_coords3, on = .(length, distance)][is.na(reads), reads := 0]
   
   res3 <- res3[order(length, distance)]
   setkey(res3, NULL)
   fwrite(res3[, .(distance, reads, length)], file = file.path(result_dir, "psite_stopcodon.txt"), sep = "\t")
+}
+
+calibrate_offsets_with_local_peaks <- function(psite_data, seq_type) {
+  target_sites <- if (seq_type == "monosome") -15:-9 else -55:-30
+  default_offset <- if (seq_type == "monosome") 12L else 42L
+
+  offsets <- lapply(sort(unique(psite_data$length)), function(len) {
+    dt_len <- psite_data[length == len & distance <= 0, .(distance, reads)][order(distance)]
+    if (nrow(dt_len) < 3) {
+      return(data.table(length = len, p_offset = default_offset))
+    }
+
+    dt_len[, prev_reads := shift(reads, 1L, type = "lag")]
+    dt_len[, next_reads := shift(reads, 1L, type = "lead")]
+
+    local_peaks <- dt_len[
+      !is.na(prev_reads) & !is.na(next_reads) & reads > prev_reads & reads > next_reads
+    ]
+    local_targets <- local_peaks[distance %in% target_sites]
+
+    if (nrow(local_targets) == 0) {
+      return(data.table(length = len, p_offset = default_offset))
+    }
+
+    best_distance <- local_targets$distance[which.max(local_targets$reads)]
+    best_offset <- abs(best_distance)
+    if (seq_type == "disome") {
+      best_offset <- best_offset + 1L
+    }
+
+    data.table(length = len, p_offset = as.integer(best_offset))
+  })
+
+  rbindlist(offsets, use.names = TRUE)
 }
 
 rpf_saturation_data <- function(reads, result_dir) {
@@ -126,16 +167,13 @@ reads <- merge(reads, tx_info, by = 'transcriptID')
 reads[, `:=`(start_pos = utr5_len + 1 + tss_extension, 
              stop_pos = utr5_len + cds_len + tss_extension)]
 
-psite_plot_data(reads, SPECIES_NAME, RESULT_DIR)
+psite_plot_data(reads, SPECIES_NAME, SEQ_TYPE, RESULT_DIR)
 rpf_saturation_data(reads, RESULT_DIR)
 
-cat("[PROGRESS] 90% | Calibrating offsets...\n")
-psite_data <- fread(file.path(RESULT_DIR, "psite.txt"))
-obj_sites <- c(-15, -14, -13, -12, -11, -10, -9)
-
-offsets <- psite_data[distance %in% obj_sites, 
-                      .(p_offset = if(sum(reads) > 0) abs(distance[which.max(reads)]) else 12), 
-                      by = length]
+cat("[PROGRESS] 90% | Calibrating offsets (local peaks)...\n")
+calibration_file <- if (SEQ_TYPE == "monosome") "psite.txt" else "psite_stopcodon.txt"
+psite_data <- fread(file.path(RESULT_DIR, calibration_file))
+offsets <- calibrate_offsets_with_local_peaks(psite_data, SEQ_TYPE)
 
 fwrite(offsets[order(length)], file = file.path(RESULT_DIR, "offsets.conf.txt"), sep = "\t")
 cat("[PROGRESS] 100% | Analysis complete.\n")

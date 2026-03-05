@@ -5,7 +5,7 @@ import { useConfigStore } from '@/store/useConfigStore';
 import { open } from '@tauri-apps/plugin-dialog';
 import {
   FolderOpen, Database, FileCode, CheckCircle2,
-  AlertTriangle, FileWarning, ArrowRight, Lock, LayoutGrid,
+  AlertTriangle, FileWarning, ArrowRight, Lock, LayoutGrid, Layers3,
   ChevronRight, FileKey
 } from 'lucide-react';
 import { SpeciesSearchSelector } from './SpeciesSearchSelector';
@@ -20,6 +20,7 @@ export const SetupModule: React.FC<SetupProps> = ({ onNavigate }) => {
     outputPath,
     bamPath,
     species,
+    seqType,
     isIndexFound,
     isOffsetsConfFound,
     isTxlensFound,
@@ -27,7 +28,8 @@ export const SetupModule: React.FC<SetupProps> = ({ onNavigate }) => {
     setDbPath,
     setOutputPath,
     setBamPath,
-    setSpecies
+    setSpecies,
+    setSeqType
   } = useConfigStore();
 
   const handleSelectBam = async () => {
@@ -48,6 +50,7 @@ export const SetupModule: React.FC<SetupProps> = ({ onNavigate }) => {
     dbPath &&
     outputPath &&
     species &&
+    seqType &&
     isIndexFound &&
     isOffsetsConfFound &&
     isTxlensFound &&
@@ -69,6 +72,42 @@ export const SetupModule: React.FC<SetupProps> = ({ onNavigate }) => {
       <div className="grid gap-5">
         <ConfigCard icon={<LayoutGrid size={18}/>} title="Reference Genome" desc="Select the target assembly from the global registry.">
           <SpeciesSearchSelector selectedId={species} onSelect={setSpecies} />
+        </ConfigCard>
+
+        <ConfigCard icon={<Layers3 size={18}/>} title="Ribosome Type" desc="Select footprint mode before running any analysis.">
+          <div className="grid grid-cols-2 gap-3 mt-2">
+            <button
+              onClick={() => setSeqType('monosome')}
+              className={`px-4 py-3 rounded-xl border-2 text-xs font-bold uppercase tracking-widest transition-all ${
+                seqType === 'monosome'
+                  ? 'border-emerald-600 bg-emerald-600/10 text-emerald-700'
+                  : 'border-app-border text-slate-500 hover:border-emerald-300'
+              }`}
+            >
+              Monosome
+            </button>
+            <button
+              onClick={() => setSeqType('disome')}
+              className={`px-4 py-3 rounded-xl border-2 text-xs font-bold uppercase tracking-widest transition-all ${
+                seqType === 'disome'
+                  ? 'border-emerald-600 bg-emerald-600/10 text-emerald-700'
+                  : 'border-app-border text-slate-500 hover:border-emerald-300'
+              }`}
+            >
+              Disome
+            </button>
+          </div>
+          {!seqType && (
+            <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <AlertTriangle size={14} className="text-amber-600" />
+                <p className="text-[10px] font-bold text-amber-700 uppercase tracking-widest leading-tight">
+                  Selection Required: choose monosome or disome.
+                </p>
+              </div>
+              <div className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse mr-1" />
+            </div>
+          )}
         </ConfigCard>
 
         <ConfigCard icon={<FileCode size={18}/>} title="Sequencing Data (BAM)" desc="Select the aligned RPF reads file (.bam).">
@@ -146,6 +185,7 @@ export const SetupModule: React.FC<SetupProps> = ({ onNavigate }) => {
                 <AlertTriangle size={16} className="text-amber-500" />
                 <span className="text-sm font-bold text-amber-600">
                   Project Status: {
+                    !seqType ? 'Awaiting Mode (Monosome/Disome)' :
                     !species ? 'Awaiting Species' :
                     !bamPath || !dbPath || !outputPath ? 'Awaiting Paths' :
                     !isIndexFound ? 'Missing Index (.bai)' :
