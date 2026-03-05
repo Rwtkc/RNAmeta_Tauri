@@ -16,7 +16,8 @@ import { join } from '@tauri-apps/api/path';
 import { 
   Terminal, ChevronUp, ChevronDown, LayoutGrid, 
   Activity,
-  XCircle
+  XCircle,
+  Wrench
 } from 'lucide-react';
 import { abortAnalysis } from '@/hooks/useRAnalysis';
 
@@ -139,6 +140,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, activeModule, 
           <NavItem active={activeModule === 'Codon'} label="Codon" icon={<Icon icon={dna} width={16} height={16} />} onClick={() => onModuleChange('Codon')} />
           <NavItem active={activeModule === 'MetaView'} label="MetaView" icon={<Icon icon={chartTimelineVariantShimmer} width={16} height={16} />} onClick={() => onModuleChange('MetaView')} />
           <NavItem active={activeModule === 'OrfPause'} label="ORF Pause" icon={<Activity size={16} />} onClick={() => onModuleChange('OrfPause')} />
+          <NavItem active={activeModule === 'Tools'} label="Tools" icon={<Wrench size={16} />} onClick={() => onModuleChange('Tools')} />
           
           <div className="my-2 border-t border-app-border/30 mx-6" />
           <NavItem active={activeModule === 'About'} label="About & Help" icon={<Icon icon={helpCircleOutline} width={16} height={16} />} onClick={() => onModuleChange('About')} />

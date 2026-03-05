@@ -29,7 +29,11 @@
   "bundle": {
     "active": true,
     "targets": "all",
-    "resources": ["resources/r-lang/"],
+    "resources": [
+      "resources/r-lang/",
+      "resources/JDK17/",
+      "resources/Trimmomatic/"
+    ],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -40,7 +44,7 @@
     "windows": {
       "nsis": {
         "compression": "lzma",
-        "languages": ["en-US"]
+        "languages": ["English"]
       }
     }
   }
