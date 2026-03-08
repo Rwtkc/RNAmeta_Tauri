@@ -7,7 +7,9 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "sync:r-runtime": "node scripts/sync-r-runtime.cjs",
+    "tauri:dev": "pnpm sync:r-runtime && tauri dev"
   },
   "dependencies": {
     "@iconify-icons/mdi": "^1.2.48",

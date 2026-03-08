@@ -13,33 +13,22 @@ import {
   FolderOpen,
   Play,
   RefreshCw,
-  Settings2,
 } from "lucide-react";
 import { useLogStore } from "@/store/useLogStore";
 import { useRAnalysis } from "@/hooks/useRAnalysis";
 
-type SeqMode = "SE" | "PE";
 type PhredType = "33" | "64";
 
 const SE_ADAPTERS = ["TruSeq3-SE.fa", "TruSeq2-SE.fa"];
-const PE_ADAPTERS = [
-  "TruSeq3-PE.fa",
-  "TruSeq2-PE.fa",
-  "NexteraPE-PE.fa",
-  "TruSeq3-PE-2.fa",
-  "TruSeq3-PE-2-GGGGG.fa",
-];
+const FINAL_OUTPUT_NAME = "output.fa.gz";
+const TEMP_TRIMMED_NAME = "trim.fastq.gz";
+const TEMP_SUMMARY_NAME = "trim.summary.txt";
+const TEMP_TRIMLOG_NAME = "trim.trimlog.txt";
 
 const joinPathPreview = (dir: string, file: string) => {
   if (!dir) return file;
   const withSep = dir.endsWith("\\") || dir.endsWith("/") ? dir : `${dir}\\`;
   return `${withSep}${file}`;
-};
-
-const derivePrefix = (path: string) => {
-  const file = path.split(/[\\/]/).pop() || "trimmomatic";
-  const noExt = file.replace(/(\.fastq|\.fq)(\.gz)?$/i, "");
-  return noExt || "trimmomatic";
 };
 
 const FASTQ_COUNT_R = [
@@ -120,19 +109,14 @@ const runRCount = async (scriptExpr: string, targetPath: string): Promise<number
 
 export const ToolsModule: React.FC = () => {
   const { setExpanded, addLog } = useLogStore();
-  const { runShellCommand, isRunning } = useRAnalysis();
+  const { runRScript, runShellCommand, isRunning } = useRAnalysis();
 
-  const [seqMode, setSeqMode] = useState<SeqMode>("SE");
   const [phredType, setPhredType] = useState<PhredType>("33");
 
   const [inputSE, setInputSE] = useState("");
-  const [inputR1, setInputR1] = useState("");
-  const [inputR2, setInputR2] = useState("");
   const [outputDir, setOutputDir] = useState("");
-  const [outputPrefix, setOutputPrefix] = useState("trimmomatic");
 
   const [adapterSE, setAdapterSE] = useState(SE_ADAPTERS[0]);
-  const [adapterPE, setAdapterPE] = useState(PE_ADAPTERS[0]);
 
   const defaultThreads = Math.max(Math.floor((navigator.hardwareConcurrency || 8) / 2), 1);
   const [threads, setThreads] = useState(defaultThreads);
@@ -152,34 +136,15 @@ export const ToolsModule: React.FC = () => {
 
   const isReady =
     !!outputDir &&
-    (seqMode === "SE" ? !!inputSE : !!inputR1 && !!inputR2) &&
-    !!outputPrefix.trim();
+    !!inputSE;
 
   const outputPlan = useMemo(() => {
-    const summary = joinPathPreview(outputDir, `${outputPrefix}.summary.txt`);
-    const trimlog = joinPathPreview(outputDir, `${outputPrefix}.trimlog.txt`);
-
-    if (seqMode === "SE") {
-      return {
-        summary,
-        trimlog,
-        outputs: [
-          joinPathPreview(outputDir, `${outputPrefix}.trim.fastq.gz`),
-        ],
-      };
-    }
-
     return {
-      summary,
-      trimlog,
       outputs: [
-        joinPathPreview(outputDir, `${outputPrefix}_R1.paired.fastq.gz`),
-        joinPathPreview(outputDir, `${outputPrefix}_R1.unpaired.fastq.gz`),
-        joinPathPreview(outputDir, `${outputPrefix}_R2.paired.fastq.gz`),
-        joinPathPreview(outputDir, `${outputPrefix}_R2.unpaired.fastq.gz`),
+        joinPathPreview(outputDir, FINAL_OUTPUT_NAME),
       ],
     };
-  }, [outputDir, outputPrefix, seqMode]);
+  }, [outputDir]);
 
   const pickFastq = async (setter: (path: string) => void) => {
     const selected = await open({
@@ -188,9 +153,6 @@ export const ToolsModule: React.FC = () => {
     });
     if (selected && typeof selected === "string") {
       setter(selected);
-      if (outputPrefix === "trimmomatic") {
-        setOutputPrefix(derivePrefix(selected));
-      }
     }
   };
 
@@ -209,7 +171,7 @@ export const ToolsModule: React.FC = () => {
 
     let progressTimer: ReturnType<typeof setInterval> | null = null;
     let isPolling = false;
-    let lastProgressLog = -10;
+    let lastProgressLabel = "";
     let runCompleted = false;
 
     try {
@@ -221,9 +183,10 @@ export const ToolsModule: React.FC = () => {
       }
       addLog("info", `[Tools] Trimmomatic jar ready: ${jarPath}`);
 
-      const summaryPath = await join(outputDir, `${outputPrefix}.summary.txt`);
-      const trimlogPath = await join(outputDir, `${outputPrefix}.trimlog.txt`);
-      const progressInputPath = seqMode === "SE" ? inputSE : inputR1;
+      const summaryPath = await join(outputDir, TEMP_SUMMARY_NAME);
+      const trimlogPath = await join(outputDir, TEMP_TRIMLOG_NAME);
+      const outputFaGz = await join(outputDir, FINAL_OUTPUT_NAME);
+      const progressInputPath = inputSE;
 
       // Avoid stale counters from previous runs.
       addLog("info", "[Tools] Preparing output logs...");
@@ -242,7 +205,8 @@ export const ToolsModule: React.FC = () => {
         if (totalReads > 0) {
           setProgressPct(0);
           setProgressHint(`0% (0/${totalReads.toLocaleString()} reads)`);
-          addLog("info", `[Tools] Progress: 0% (0/${totalReads.toLocaleString()} reads)`);
+          lastProgressLabel = `0% (0/${totalReads.toLocaleString()} reads)`;
+          addLog("info", `[Tools] Progress: ${lastProgressLabel}`);
         }
       } catch (countError) {
         totalReads = 0;
@@ -252,7 +216,7 @@ export const ToolsModule: React.FC = () => {
       }
 
       const qualityFlag = phredType === "33" ? "-phred33" : "-phred64";
-      const adapter = seqMode === "SE" ? adapterSE : adapterPE;
+      const adapter = adapterSE;
       const trimmers: string[] = [
         `ILLUMINACLIP:${adapter}:${seedMismatches}:${palindromeClip}:${simpleClip}`,
         `LEADING:${leadingQ}`,
@@ -269,7 +233,7 @@ export const ToolsModule: React.FC = () => {
         "-Dsun.jnu.encoding=UTF-8",
         "-jar",
         jarPath,
-        seqMode,
+        "SE",
         "-threads",
         String(Math.max(1, threads)),
         "-compressLevel",
@@ -281,18 +245,10 @@ export const ToolsModule: React.FC = () => {
         trimlogPath,
       ];
 
-      if (seqMode === "SE") {
-        const outSE = await join(outputDir, `${outputPrefix}.trim.fastq.gz`);
-        args.push(inputSE, outSE, ...trimmers);
-      } else {
-        const outR1P = await join(outputDir, `${outputPrefix}_R1.paired.fastq.gz`);
-        const outR1U = await join(outputDir, `${outputPrefix}_R1.unpaired.fastq.gz`);
-        const outR2P = await join(outputDir, `${outputPrefix}_R2.paired.fastq.gz`);
-        const outR2U = await join(outputDir, `${outputPrefix}_R2.unpaired.fastq.gz`);
-        args.push(inputR1, inputR2, outR1P, outR1U, outR2P, outR2U, ...trimmers);
-      }
+      const outSE = await join(outputDir, TEMP_TRIMMED_NAME);
+      args.push(inputSE, outSE, ...trimmers);
 
-      addLog("command", `[Tools] Trimmomatic mode=${seqMode}, threads=${threads}, compress=${compressLevel}`);
+      addLog("command", `[Tools] Trimmomatic mode=SE, threads=${threads}, compress=${compressLevel}`);
       if (totalReads > 0) {
         progressTimer = setInterval(async () => {
           if (runCompleted) return;
@@ -307,15 +263,12 @@ export const ToolsModule: React.FC = () => {
               if (prev === null) return pct;
               return pct > prev ? pct : prev;
             });
-            setProgressHint(
-              `${pct}% (${effectiveProcessed.toLocaleString()}/${totalReads.toLocaleString()} reads)`
-            );
-            if (pct >= lastProgressLog + 10) {
-              lastProgressLog = pct - (pct % 10);
-              addLog(
-                "info",
-                `[Tools] Progress: ${pct}% (${effectiveProcessed.toLocaleString()}/${totalReads.toLocaleString()} reads)`
-              );
+            const progressLabel =
+              `${pct}% (${effectiveProcessed.toLocaleString()}/${totalReads.toLocaleString()} reads)`;
+            setProgressHint(progressLabel);
+            if (progressLabel !== lastProgressLabel) {
+              lastProgressLabel = progressLabel;
+              addLog("info", `[Tools] Progress: ${progressLabel}`);
             }
           } catch {
             // Ignore transient progress polling failures while file is being written.
@@ -340,18 +293,38 @@ export const ToolsModule: React.FC = () => {
         },
       });
 
-      runCompleted = true;
       if (progressTimer) {
         clearInterval(progressTimer);
         progressTimer = null;
       }
-      lastProgressLog = 100;
+      setProgressPct(99);
+      setProgressHint("99% | Trimming complete, generating collapsed FASTA...");
+      addLog("info", "[Tools] Trimming completed. Launching FASTQ -> FASTA collapse...");
+
+      await runRScript("tools_fastq_to_fasta", [
+        "--inputFastq",
+        outSE,
+        "--outputFaGz",
+        outputFaGz,
+        "--summaryPath",
+        summaryPath,
+        "--trimlogPath",
+        trimlogPath,
+      ]);
+
+      runCompleted = true;
+      lastProgressLabel = "100% Completed";
       setProgressPct(100);
       setProgressHint("100% Completed");
       addLog("info", "[Tools] Progress: 100% Completed");
-      addLog("success", "[Tools] Trimmomatic completed successfully.");
-      addLog("info", `[Tools] summary saved: ${summaryPath}`);
-      addLog("info", `[Tools] trimlog saved: ${trimlogPath}`);
+      addLog("success", "[Tools] Trimmomatic + FASTA export completed successfully.");
+      addLog("info", `[Tools] final output saved: ${outputFaGz}`);
+      setTimeout(() => {
+        const { activeProcessCount, sessionHasError } = useLogStore.getState();
+        if (activeProcessCount === 0 && !sessionHasError) {
+          setExpanded(false);
+        }
+      }, 800);
     } catch (error: any) {
       runCompleted = true;
       if (progressTimer) {
@@ -385,59 +358,15 @@ export const ToolsModule: React.FC = () => {
       </div>
 
       <Card
-        icon={<Settings2 size={18} />}
-        title="Read Mode"
-        desc="Select sequencing layout before choosing inputs."
-      >
-        <div className="grid grid-cols-2 gap-3 mt-2">
-          <button
-            onClick={() => setSeqMode("SE")}
-            className={`px-4 py-3 rounded-xl border-2 text-xs font-bold uppercase tracking-widest transition-all ${
-              seqMode === "SE"
-                ? "border-emerald-600 bg-emerald-600/10 text-emerald-700"
-                : "border-app-border text-slate-500 hover:border-emerald-300"
-            }`}
-          >
-            Single-End (SE)
-          </button>
-          <button
-            onClick={() => setSeqMode("PE")}
-            className={`px-4 py-3 rounded-xl border-2 text-xs font-bold uppercase tracking-widest transition-all ${
-              seqMode === "PE"
-                ? "border-emerald-600 bg-emerald-600/10 text-emerald-700"
-                : "border-app-border text-slate-500 hover:border-emerald-300"
-            }`}
-          >
-            Paired-End (PE)
-          </button>
-        </div>
-      </Card>
-
-      <Card
         icon={<FolderOpen size={18} />}
         title="Input / Output"
         desc="Pick FASTQ files and output directory."
       >
-        {seqMode === "SE" ? (
-          <PathInput
-            value={inputSE}
-            placeholder="Select input FASTQ(.gz)..."
-            onSelect={() => pickFastq(setInputSE)}
-          />
-        ) : (
-          <div className="space-y-3">
-            <PathInput
-              value={inputR1}
-              placeholder="Select R1 FASTQ(.gz)..."
-              onSelect={() => pickFastq(setInputR1)}
-            />
-            <PathInput
-              value={inputR2}
-              placeholder="Select R2 FASTQ(.gz)..."
-              onSelect={() => pickFastq(setInputR2)}
-            />
-          </div>
-        )}
+        <PathInput
+          value={inputSE}
+          placeholder="Select input FASTQ(.gz)..."
+          onSelect={() => pickFastq(setInputSE)}
+        />
 
         <div className="mt-3">
           <PathInput
@@ -464,15 +393,8 @@ export const ToolsModule: React.FC = () => {
           />
         </div>
 
-        <div className="mt-3">
-          <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest">
-            Output Prefix
-          </label>
-          <input
-            value={outputPrefix}
-            onChange={(e) => setOutputPrefix(e.target.value)}
-            className="mt-2 w-full bg-app-input border-2 border-app-border rounded-xl px-4 py-2.5 text-xs focus:border-emerald-500"
-          />
+        <div className="mt-3 text-[11px] font-mono text-slate-500">
+          final output: {joinPathPreview(outputDir, FINAL_OUTPUT_NAME)}
         </div>
       </Card>
 
@@ -502,12 +424,9 @@ export const ToolsModule: React.FC = () => {
           <LabeledNumberInput label="Max Length" value={maxLen} min={0} max={1000} onChange={setMaxLen} />
           <SelectBox
             label="Adapter"
-            value={seqMode === "SE" ? adapterSE : adapterPE}
-            options={(seqMode === "SE" ? SE_ADAPTERS : PE_ADAPTERS).map((x) => ({ label: x, value: x }))}
-            onChange={(v) => {
-              if (seqMode === "SE") setAdapterSE(v);
-              else setAdapterPE(v);
-            }}
+            value={adapterSE}
+            options={SE_ADAPTERS.map((x) => ({ label: x, value: x }))}
+            onChange={(v) => setAdapterSE(v)}
           />
         </div>
       </Card>
@@ -515,14 +434,12 @@ export const ToolsModule: React.FC = () => {
       <Card
         icon={<FileArchive size={18} />}
         title="Outputs"
-        desc="The module writes output FASTQ, summary, and trimlog files."
+        desc="The module writes collapsed FASTA output and removes temporary trimming files."
       >
         <div className="space-y-1 text-[11px] font-mono text-slate-600">
           {outputPlan.outputs.map((path) => (
             <div key={path}>out: {path}</div>
           ))}
-          <div>summary: {outputPlan.summary}</div>
-          <div>trimlog: {outputPlan.trimlog}</div>
         </div>
       </Card>
 
