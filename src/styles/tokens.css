@@ -1,0 +1,57 @@
+:root {
+  color-scheme: light;
+  --ribo-primary: #859b7a;
+  --ribo-primary-deep: #65795b;
+  --ribo-accent-soft: #e8ede2;
+  --ribo-accent-warm: #c98468;
+  --ribo-accent-warm-deep: #9d5f49;
+  --app-bg: #f3ede4;
+  --app-sidebar: #fffdf8;
+  --app-card: #fffdf8;
+  --app-surface-soft: #f8f2ea;
+  --app-surface-strong: #fffdf8;
+  --app-text: #2f3930;
+  --app-muted: #6d7569;
+  --app-border: #d8cebf;
+  --app-border-soft: #e8ddd0;
+  --app-placeholder: #9ca697;
+  --app-input: #f8f2ea;
+  --app-sidebar-active: #e8ede2;
+  --app-warm-soft: #f2d8cc;
+  --app-warm-soft-strong: #f2d8cc;
+  --app-warm-border: #d9b29e;
+  --app-shadow: 0 0.75rem 1.875rem rgba(58, 49, 38, 0.08);
+  --app-danger: #dc2626;
+  --app-warning: #d97706;
+  --app-body-font: "Montserrat", "Segoe UI", sans-serif;
+  --app-display-font: "Archivo Black", "Montserrat", sans-serif;
+  font-family: var(--app-body-font);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  background: linear-gradient(180deg, #fffaf3 0%, var(--app-bg) 100%);
+  color: var(--app-text);
+}
+
+body {
+  overflow: hidden;
+}
+
+button,
+input,
+select {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}

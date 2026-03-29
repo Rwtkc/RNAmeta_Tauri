@@ -1,0 +1,134 @@
+.meta-plot-stage__figure {
+  overflow: hidden;
+  border: 2px solid var(--app-border);
+  border-radius: 16px;
+  background: #f6f6ef;
+  padding: 18px;
+}
+
+.meta-plot-stage__svg {
+  width: 100%;
+  min-width: 0;
+}
+
+.meta-plot-stage__svg svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  margin: 0 auto;
+}
+
+.meta-plot-interactive-chart {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+}
+
+.meta-plot-hit-path {
+  cursor: pointer;
+}
+
+.meta-plot-line-path {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: meta-plot-line-grow 1500ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  animation-delay: var(--meta-plot-animation-delay, 0ms);
+}
+
+.meta-plot-area-path {
+  opacity: 0;
+  animation: meta-plot-area-fade 520ms ease-out forwards;
+  animation-delay: calc(var(--meta-plot-animation-delay, 0ms) + 260ms);
+}
+
+.meta-plot-hover-marker {
+  pointer-events: none;
+}
+
+.meta-plot-tooltip {
+  position: absolute;
+  z-index: 2;
+  min-width: 180px;
+  width: max-content;
+  max-width: calc(100vw - 2rem);
+  pointer-events: none;
+  padding: 12px 14px;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  border-radius: 14px;
+  background: rgba(255, 252, 246, 0.98);
+  box-shadow: 0 16px 36px rgba(15, 23, 42, 0.12);
+  color: #111827;
+}
+
+.meta-plot-tooltip__label {
+  margin-bottom: 8px;
+  font-size: 0.84rem;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.meta-plot-tooltip__row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 14px;
+  margin-top: 6px;
+  font-size: 0.76rem;
+}
+
+.meta-plot-tooltip__row span {
+  flex: 0 0 auto;
+  min-width: 0;
+  color: #64748b;
+}
+
+.meta-plot-tooltip__row strong {
+  min-width: 0;
+  flex: 1 1 auto;
+  color: #0f172a;
+  text-align: right;
+  word-break: break-word;
+}
+
+.meta-plot-tooltip__row--file strong {
+  max-width: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  word-break: normal;
+}
+
+@keyframes meta-plot-line-grow {
+  from {
+    stroke-dashoffset: 1;
+  }
+
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes meta-plot-area-fade {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: var(--meta-plot-fill-opacity, 0.18);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .meta-plot-line-path,
+  .meta-plot-area-path {
+    animation: none;
+  }
+
+  .meta-plot-line-path {
+    stroke-dashoffset: 0;
+  }
+
+  .meta-plot-area-path {
+    opacity: var(--meta-plot-fill-opacity, 0.18);
+  }
+}

@@ -1,0 +1,81 @@
+.gene-matrix-venn-chart {
+  position: relative;
+  width: 100%;
+}
+
+.gene-matrix-venn-chart svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.gene-matrix-tooltip {
+  position: absolute;
+  z-index: 6;
+  min-width: 8.25rem;
+  width: max-content;
+  max-width: calc(100vw - 2rem);
+  padding: 0.58rem 0.68rem;
+  border: 0.0625rem solid rgba(133, 155, 122, 0.22);
+  border-radius: 0.75rem;
+  background: rgba(255, 252, 246, 0.98);
+  box-shadow: 0 0.7rem 1.3rem rgba(115, 98, 72, 0.14);
+  color: var(--app-text);
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(6px);
+  transition: opacity 0.12s ease, transform 0.12s ease;
+}
+
+.gene-matrix-tooltip[data-visible="true"] {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.gene-matrix-tooltip__label {
+  margin-bottom: 0.28rem;
+  color: var(--app-text);
+  font-size: 0.88rem;
+  font-weight: 800;
+}
+
+.gene-matrix-tooltip__row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.45rem;
+  color: var(--app-muted);
+  font-size: 0.8rem;
+  line-height: 1.28;
+}
+
+.gene-matrix-tooltip__row span,
+.gene-matrix-tooltip__row strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.gene-matrix-tooltip__row strong {
+  color: var(--app-text);
+  font-weight: 700;
+  font-size: 0.8rem;
+  text-align: right;
+}
+
+.gene-matrix-tooltip__row--file strong {
+  display: block;
+  flex: 1 1 auto;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  word-break: normal;
+  overflow-wrap: normal;
+  max-width: none;
+}
+
+.gene-matrix-tooltip__row--file span {
+  flex: 0 0 auto;
+}
+
+/* 鈹€鈹€ Site Profile / Transcription 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€ */
