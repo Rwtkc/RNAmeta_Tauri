@@ -1,14 +1,14 @@
 import type { Dispatch, ReactNode, SetStateAction } from "react";
 import { X } from "lucide-react";
+import {
+  ANALYSIS_EXPORT_FORMATS,
+  isDataExportFormat,
+  type AnalysisExportFormat,
+  type AnalysisExportState
+} from "@/lib/exportFormats";
 
-export type FigureExportFormat = "png" | "pdf";
-
-export interface FigureExportState {
-  format: FigureExportFormat;
-  width: string;
-  height: string;
-  dpi: string;
-}
+export type FigureExportFormat = AnalysisExportFormat;
+export type FigureExportState = AnalysisExportState;
 
 interface FigureExportDialogProps {
   ariaLabel: string;
@@ -33,6 +33,13 @@ export function FigureExportDialog({
   submitLabel = "Download Figure",
   title = "Figure Export"
 }: FigureExportDialogProps) {
+  const isDataFormat = isDataExportFormat(state.format);
+  const resolvedTitle = isDataFormat ? "Data Export" : title;
+  const resolvedDescription = isDataFormat
+    ? "Export the current normalized analysis table in CSV or tab-delimited TXT format."
+    : description;
+  const resolvedSubmitLabel = isDataFormat ? "Download Data" : submitLabel;
+
   return (
     <div className="export-modal" role="dialog" aria-modal="true" aria-label={ariaLabel}>
       <div className="export-modal__backdrop" onClick={onClose} />
@@ -41,8 +48,8 @@ export function FigureExportDialog({
           <div className="export-modal__title-row">
             <div className="export-modal__badge">{badgeIcon}</div>
             <div>
-              <h3>{title}</h3>
-              <p>{description}</p>
+              <h3>{resolvedTitle}</h3>
+              <p>{resolvedDescription}</p>
             </div>
           </div>
           <button
@@ -59,7 +66,7 @@ export function FigureExportDialog({
           <div className="export-menu__field export-menu__field--full">
             <span>Format</span>
             <div className="export-modal__format-grid">
-              {(["png", "pdf"] as FigureExportFormat[]).map((formatOption) => (
+              {ANALYSIS_EXPORT_FORMATS.map((formatOption) => (
                 <button
                   key={formatOption}
                   type="button"
@@ -79,57 +86,59 @@ export function FigureExportDialog({
             </div>
           </div>
 
-          <div className="export-modal__grid">
-            <label className="export-menu__field">
-              <span>Width (px)</span>
-              <input
-                className="field-shell__input export-menu__input"
-                type="number"
-                value={state.width}
-                onChange={(event) =>
-                  onStateChange((current) => ({
-                    ...current,
-                    width: event.target.value
-                  }))
-                }
-              />
-            </label>
+          {isDataFormat ? null : (
+            <div className="export-modal__grid">
+              <label className="export-menu__field">
+                <span>Width (px)</span>
+                <input
+                  className="field-shell__input export-menu__input"
+                  type="number"
+                  value={state.width}
+                  onChange={(event) =>
+                    onStateChange((current) => ({
+                      ...current,
+                      width: event.target.value
+                    }))
+                  }
+                />
+              </label>
 
-            <label className="export-menu__field">
-              <span>Height (px)</span>
-              <input
-                className="field-shell__input export-menu__input"
-                type="number"
-                value={state.height}
-                onChange={(event) =>
-                  onStateChange((current) => ({
-                    ...current,
-                    height: event.target.value
-                  }))
-                }
-              />
-            </label>
+              <label className="export-menu__field">
+                <span>Height (px)</span>
+                <input
+                  className="field-shell__input export-menu__input"
+                  type="number"
+                  value={state.height}
+                  onChange={(event) =>
+                    onStateChange((current) => ({
+                      ...current,
+                      height: event.target.value
+                    }))
+                  }
+                />
+              </label>
 
-            <label className="export-menu__field export-menu__field--full">
-              <span>DPI</span>
-              <input
-                className="field-shell__input export-menu__input"
-                type="number"
-                value={state.dpi}
-                onChange={(event) =>
-                  onStateChange((current) => ({
-                    ...current,
-                    dpi: event.target.value
-                  }))
-                }
-              />
-            </label>
-          </div>
+              <label className="export-menu__field export-menu__field--full">
+                <span>DPI</span>
+                <input
+                  className="field-shell__input export-menu__input"
+                  type="number"
+                  value={state.dpi}
+                  onChange={(event) =>
+                    onStateChange((current) => ({
+                      ...current,
+                      dpi: event.target.value
+                    }))
+                  }
+                />
+              </label>
+            </div>
+          )}
         </div>
 
         <div className="export-modal__actions">
           <button type="button" className="export-modal__submit" onClick={onSubmit}>
-            {submitLabel}
+            {resolvedSubmitLabel}
           </button>
         </div>
       </div>

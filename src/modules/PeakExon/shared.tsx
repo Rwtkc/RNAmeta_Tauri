@@ -1,17 +1,28 @@
 import type { Dispatch, ReactNode, SetStateAction } from "react";
 import { save } from "@tauri-apps/plugin-dialog";
 import { readTextFile, writeFile } from "@tauri-apps/plugin-fs";
-import { X } from "lucide-react";
 import { buildMetaPlotPdfBytes, buildMetaPlotPngBytes } from "@/lib/metaPlotExport";
+import {
+  buildBoxplotDataTable,
+  buildFacetedBoxplotDataTable,
+  buildPeakDistributionDataTable,
+  exportAnalysisDataTable,
+  isDataExportFormat
+} from "@/lib/analysisDataExport";
+import {
+  FigureExportDialog,
+  type FigureExportFormat,
+  type FigureExportState
+} from "@/components/analysis/FigureExportDialog";
+import type {
+  BoxplotPayload,
+  FacetedBoxplotPayload,
+  PeakDistributionPayload
+} from "@/types/native";
 
-export type ExportFormat = "png" | "pdf";
+export type ExportFormat = FigureExportFormat;
 
-export interface PeakExonExportState {
-  format: ExportFormat;
-  width: string;
-  height: string;
-  dpi: string;
-}
+export interface PeakExonExportState extends FigureExportState {}
 
 export interface PeakExonProgress {
   percent: number;
@@ -33,6 +44,7 @@ interface PeakExonExportDialogProps<TExportState extends PeakExonExportState> {
 }
 
 interface ExportPeakExonChartOptions<TExportState extends PeakExonExportState> {
+  dataPayload: BoxplotPayload | FacetedBoxplotPayload | PeakDistributionPayload;
   svgElement: SVGSVGElement;
   exportState: TExportState;
   dialogTitle: string;
@@ -55,108 +67,15 @@ export function PeakExonExportDialog<TExportState extends PeakExonExportState>({
   onSubmit
 }: PeakExonExportDialogProps<TExportState>) {
   return (
-    <div className="export-modal" role="dialog" aria-modal="true" aria-label={title}>
-      <div className="export-modal__backdrop" onClick={onClose} />
-      <div className="export-modal__panel">
-        <div className="export-modal__head">
-          <div className="export-modal__title-row">
-            <div className="export-modal__badge">{icon}</div>
-            <div>
-              <h3>Figure Export</h3>
-              <p>Configure output size and resolution before writing the file.</p>
-            </div>
-          </div>
-          <button
-            type="button"
-            className="export-modal__close"
-            onClick={onClose}
-            aria-label="Close export dialog"
-          >
-            <X size={18} />
-          </button>
-        </div>
-
-        <div className="export-modal__body">
-          <div className="export-menu__field export-menu__field--full">
-            <span>Format</span>
-            <div className="export-modal__format-grid">
-              {(["png", "pdf"] as ExportFormat[]).map((formatOption) => (
-                <button
-                  key={formatOption}
-                  type="button"
-                  className={`export-modal__format-option${
-                    exportState.format === formatOption ? " is-active" : ""
-                  }`}
-                  onClick={() =>
-                    onChange((current) => ({
-                      ...current,
-                      format: formatOption
-                    }))
-                  }
-                >
-                  {formatOption.toUpperCase()}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="export-modal__grid">
-            <label className="export-menu__field">
-              <span>Width (px)</span>
-              <input
-                className="field-shell__input export-menu__input"
-                type="number"
-                value={exportState.width}
-                onChange={(event) =>
-                  onChange((current) => ({
-                    ...current,
-                    width: event.target.value
-                  }))
-                }
-              />
-            </label>
-            <label className="export-menu__field">
-              <span>Height (px)</span>
-              <input
-                className="field-shell__input export-menu__input"
-                type="number"
-                value={exportState.height}
-                onChange={(event) =>
-                  onChange((current) => ({
-                    ...current,
-                    height: event.target.value
-                  }))
-                }
-              />
-            </label>
-            <label className="export-menu__field export-menu__field--full">
-              <span>DPI</span>
-              <input
-                className="field-shell__input export-menu__input"
-                type="number"
-                value={exportState.dpi}
-                onChange={(event) =>
-                  onChange((current) => ({
-                    ...current,
-                    dpi: event.target.value
-                  }))
-                }
-              />
-            </label>
-          </div>
-        </div>
-
-        <div className="export-modal__actions">
-          <button
-            type="button"
-            className="export-modal__submit"
-            onClick={onSubmit}
-          >
-            Download Figure
-          </button>
-        </div>
-      </div>
-    </div>
+    <FigureExportDialog
+      ariaLabel={title}
+      badgeIcon={icon}
+      description="Configure output size and resolution before writing the file."
+      onClose={onClose}
+      onStateChange={(value) => onChange(value as SetStateAction<TExportState>)}
+      onSubmit={onSubmit}
+      state={exportState}
+    />
   );
 }
 
@@ -229,6 +148,7 @@ export function normalizePeakExonEngineLine(
 }
 
 export async function exportPeakExonChart<TExportState extends PeakExonExportState>({
+  dataPayload,
   svgElement,
   exportState,
   dialogTitle,
@@ -239,6 +159,24 @@ export async function exportPeakExonChart<TExportState extends PeakExonExportSta
   addLog
 }: ExportPeakExonChartOptions<TExportState>) {
   const format = exportState.format;
+  if (isDataExportFormat(format)) {
+    const table =
+      dataPayload.type === "boxplot"
+        ? buildBoxplotDataTable(dataPayload)
+        : dataPayload.type === "boxplot_facet"
+          ? buildFacetedBoxplotDataTable(dataPayload)
+          : buildPeakDistributionDataTable(dataPayload);
+    const didExport = await exportAnalysisDataTable({
+      addLog,
+      defaultPath: exportPeakExonFileName(fileStem, format),
+      format,
+      logLabel,
+      table,
+      title: `${dialogTitle} ${format.toUpperCase()}`
+    });
+    return didExport;
+  }
+
   const width = Math.max(1, Number.parseInt(exportState.width, 10) || defaultWidth);
   const height = Math.max(
     1,

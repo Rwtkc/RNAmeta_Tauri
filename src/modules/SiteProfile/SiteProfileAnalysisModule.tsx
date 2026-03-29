@@ -12,6 +12,11 @@ import { useTransientRunError } from "@/hooks/useTransientRunError";
 import { buildMetaPlotPdfBytes, buildMetaPlotPngBytes } from "@/lib/metaPlotExport";
 import { buildSiteProfileSvgMarkup } from "@/lib/siteProfileExport";
 import {
+  buildSiteProfileDataTable,
+  exportAnalysisDataTable,
+  isDataExportFormat
+} from "@/lib/analysisDataExport";
+import {
   buildAnalysisCacheKey,
   resolveSessionCachePath
 } from "@/lib/sessionCache";
@@ -43,6 +48,7 @@ export function SiteProfileAnalysisModule({
 }) {
   const { runError, setRunError } = useTransientRunError();
   const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
+  const [currentHeatmapSample, setCurrentHeatmapSample] = useState<string | null>(null);
   const [exportState, setExportState] = useState(defaultSiteExportState);
   const chartRef = useRef<HTMLDivElement | null>(null);
   const store = useAppStore();
@@ -170,6 +176,32 @@ export function SiteProfileAnalysisModule({
   }
 
   async function exportChart() {
+    if (!payload) {
+      return;
+    }
+
+    const format = exportState.format;
+    if (isDataExportFormat(format)) {
+      try {
+        const didExport = await exportAnalysisDataTable({
+          addLog,
+          defaultPath: siteExportFileName(moduleId, format),
+          format,
+          logLabel: config.logPrefix,
+          table: buildSiteProfileDataTable(payload, currentHeatmapSample),
+          title: `Export ${config.title} ${format.toUpperCase()}`
+        });
+        if (didExport) {
+          setIsExportDialogOpen(false);
+        }
+      } catch (error) {
+        const message = `${format.toUpperCase()} export failed: ${formatSiteExportError(error)}`;
+        setRunError(message);
+        addLog("error", `[${config.logPrefix}] ${message}`);
+      }
+      return;
+    }
+
     const exportElement = chartRef.current?.querySelector(
       ".site-profile-d3-chart"
     ) as HTMLElement | null;
@@ -177,7 +209,6 @@ export function SiteProfileAnalysisModule({
       return;
     }
 
-    const format = exportState.format;
     const width = Math.max(1, Number.parseInt(exportState.width, 10) || 1400);
     const height = Math.max(1, Number.parseInt(exportState.height, 10) || 1600);
     const dpi = Math.max(72, Number.parseInt(exportState.dpi, 10) || 300);
@@ -295,7 +326,10 @@ export function SiteProfileAnalysisModule({
         <div className="site-profile-stage">
           {payload ? (
             <div ref={chartRef} className="site-profile-stage__figure">
-              <SiteProfileChart payload={payload as SiteProfilePayload} />
+              <SiteProfileChart
+                payload={payload as SiteProfilePayload}
+                onHeatmapSampleChange={setCurrentHeatmapSample}
+              />
             </div>
           ) : (
             <div className="chart-placeholder">

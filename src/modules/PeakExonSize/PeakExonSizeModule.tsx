@@ -198,12 +198,13 @@ export function PeakExonSizeModule() {
 
   async function exportChart() {
     const svgElement = chartRef.current?.querySelector("svg");
-    if (!svgElement) {
+    if (!svgElement || !peakExonSizePayload) {
       return;
     }
 
     try {
       const didExport = await exportPeakExonChart({
+        dataPayload: peakExonSizePayload,
         svgElement,
         exportState,
         dialogTitle: "Export Peak Exon Size",

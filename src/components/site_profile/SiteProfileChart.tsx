@@ -47,7 +47,13 @@ function buildLegendEntries(
   return entries;
 }
 
-export function SiteProfileChart({ payload }: { payload: SiteProfilePayload }) {
+export function SiteProfileChart({
+  onHeatmapSampleChange,
+  payload
+}: {
+  onHeatmapSampleChange?: (value: string | null) => void;
+  payload: SiteProfilePayload;
+}) {
   const chartRef = useRef<HTMLDivElement | null>(null);
   const tooltipRef = useRef<HTMLDivElement | null>(null);
   const panels = useMemo(
@@ -114,6 +120,10 @@ export function SiteProfileChart({ payload }: { payload: SiteProfilePayload }) {
       );
     });
   }, [heatmapSampleOptions, payload]);
+
+  useEffect(() => {
+    onHeatmapSampleChange?.(selectedHeatmapSample || null);
+  }, [onHeatmapSampleChange, selectedHeatmapSample]);
 
   if (panels.length === 0) {
     return null;

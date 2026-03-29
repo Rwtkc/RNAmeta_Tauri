@@ -11,6 +11,11 @@ import { SPECIES_OPTIONS } from "@/data/species";
 import { useRAnalysis } from "@/hooks/useRAnalysis";
 import { useTransientRunError } from "@/hooks/useTransientRunError";
 import { buildMetaPlotPdfBytes, buildMetaPlotPngBytes } from "@/lib/metaPlotExport";
+import {
+  buildBoxplotDataTable,
+  exportAnalysisDataTable,
+  isDataExportFormat
+} from "@/lib/analysisDataExport";
 import { buildPeakGeneSizeRequest } from "@/lib/peakGeneSizeRuntime";
 import {
   buildAnalysisCacheKey,
@@ -168,12 +173,37 @@ export function PeakGeneSizeModule() {
   }
 
   async function exportChart() {
+    if (!peakGeneSizePayload) {
+      return;
+    }
+
+    const format = exportState.format;
+    if (isDataExportFormat(format)) {
+      try {
+        const didExport = await exportAnalysisDataTable({
+          addLog,
+          defaultPath: peakGeneSizeExportFileName(format),
+          format,
+          logLabel: "Peak Gene Size",
+          table: buildBoxplotDataTable(peakGeneSizePayload),
+          title: `Export Peak Gene Size ${format.toUpperCase()}`
+        });
+        if (didExport) {
+          setIsExportDialogOpen(false);
+        }
+      } catch (error) {
+        const message = `${format.toUpperCase()} export failed: ${formatPeakGeneSizeExportError(error)}`;
+        setRunError(message);
+        addLog("error", `[Peak Gene Size] ${message}`);
+      }
+      return;
+    }
+
     const svgElement = chartRef.current?.querySelector("svg");
     if (!svgElement) {
       return;
     }
 
-    const format = exportState.format;
     const width = Math.max(1, Number.parseInt(exportState.width, 10) || 1200);
     const height = Math.max(1, Number.parseInt(exportState.height, 10) || 620);
     const dpi = Math.max(72, Number.parseInt(exportState.dpi, 10) || 300);

@@ -202,12 +202,13 @@ export function PeakExonTypeModule() {
 
   async function exportChart() {
     const svgElement = chartRef.current?.querySelector("svg");
-    if (!svgElement) {
+    if (!svgElement || !peakExonTypePayload) {
       return;
     }
 
     try {
       const didExport = await exportPeakExonChart({
+        dataPayload: peakExonTypePayload,
         svgElement,
         exportState,
         dialogTitle: "Export Peak Exon Type",

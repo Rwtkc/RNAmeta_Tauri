@@ -12,6 +12,11 @@ import { useRAnalysis } from "@/hooks/useRAnalysis";
 import { useTransientRunError } from "@/hooks/useTransientRunError";
 import { buildMetaPlotPdfBytes, buildMetaPlotPngBytes } from "@/lib/metaPlotExport";
 import {
+  buildMetaPlotDataTable,
+  exportAnalysisDataTable,
+  isDataExportFormat
+} from "@/lib/analysisDataExport";
+import {
   buildMetaPlotRequest,
   tuneMetaPlotPayload
 } from "@/lib/metaPlotRuntime";
@@ -216,6 +221,27 @@ export function MetaPlotModule() {
     }
 
     const format = exportState.format;
+    if (isDataExportFormat(format)) {
+      try {
+        const didExport = await exportAnalysisDataTable({
+          addLog,
+          defaultPath: metaPlotExportFileName(format),
+          format,
+          logLabel: "Meta Plot",
+          table: buildMetaPlotDataTable(metaPlotPayload),
+          title: `Export Meta Plot ${format.toUpperCase()}`
+        });
+        if (didExport) {
+          setIsExportDialogOpen(false);
+        }
+      } catch (error) {
+        const message = `${format.toUpperCase()} export failed: ${formatMetaPlotExportError(error)}`;
+        setRunError(message);
+        addLog("error", `[Meta Plot] ${message}`);
+      }
+      return;
+    }
+
     const width = Math.max(1, Number.parseInt(exportState.width, 10) || 1200);
     const height = Math.max(1, Number.parseInt(exportState.height, 10) || 560);
     const dpi = Math.max(72, Number.parseInt(exportState.dpi, 10) || 300);

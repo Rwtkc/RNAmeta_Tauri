@@ -22,7 +22,8 @@
 .app-sidebar__brand {
   display: flex;
   align-items: center;
-  padding: 24px 20px 24px 36px;
+  gap: 12px;
+  padding: 22px 20px 22px 18px;
   border-bottom: 1px solid var(--app-border-soft);
   font-family: var(--app-display-font);
   font-size: 1.42rem;
@@ -30,6 +31,14 @@
   line-height: 1;
   letter-spacing: -0.02em;
   color: var(--app-text);
+}
+
+.app-sidebar__brand-icon {
+  width: 36px;
+  height: 36px;
+  flex: 0 0 36px;
+  object-fit: contain;
+  border-radius: 10px;
 }
 
 .app-sidebar__nav {

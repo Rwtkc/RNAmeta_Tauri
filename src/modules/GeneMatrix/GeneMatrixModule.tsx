@@ -11,6 +11,11 @@ import { SPECIES_OPTIONS } from "@/data/species";
 import { useRAnalysis } from "@/hooks/useRAnalysis";
 import { useTransientRunError } from "@/hooks/useTransientRunError";
 import { buildMetaPlotPdfBytes, buildMetaPlotPngBytes } from "@/lib/metaPlotExport";
+import {
+  buildGeneMatrixDataTable,
+  exportAnalysisDataTable,
+  isDataExportFormat
+} from "@/lib/analysisDataExport";
 import { buildGeneMatrixRequest } from "@/lib/geneMatrixRuntime";
 import {
   buildAnalysisCacheKey,
@@ -154,12 +159,37 @@ export function GeneMatrixModule() {
   }
 
   async function exportChart() {
+    if (!geneMatrixPayload) {
+      return;
+    }
+
+    const format = exportState.format;
+    if (isDataExportFormat(format)) {
+      try {
+        const didExport = await exportAnalysisDataTable({
+          addLog,
+          defaultPath: geneMatrixExportFileName(format),
+          format,
+          logLabel: "Gene Matrix",
+          table: buildGeneMatrixDataTable(geneMatrixPayload),
+          title: `Export Gene Matrix ${format.toUpperCase()}`
+        });
+        if (didExport) {
+          setIsExportDialogOpen(false);
+        }
+      } catch (error) {
+        const message = `${format.toUpperCase()} export failed: ${formatGeneMatrixExportError(error)}`;
+        setRunError(message);
+        addLog("error", `[Gene Matrix] ${message}`);
+      }
+      return;
+    }
+
     const svgElement = chartRef.current?.querySelector("svg");
     if (!svgElement) {
       return;
     }
 
-    const format = exportState.format;
     const width = Math.max(1, Number.parseInt(exportState.width, 10) || 1200);
     const height = Math.max(1, Number.parseInt(exportState.height, 10) || 700);
     const dpi = Math.max(72, Number.parseInt(exportState.dpi, 10) || 300);

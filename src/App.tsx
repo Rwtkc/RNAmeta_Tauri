@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { MainLayout } from "@/layout/MainLayout";
 import { LoadingScreen } from "@/components/shared/LoadingScreen";
+import { HelpModule } from "@/modules/Help/HelpModule";
+import { isHelpPageId } from "@/modules/Help/helpModuleDefinitions";
 import { SetupModule } from "@/modules/Setup/SetupModule";
 import { UploadRunModule } from "@/modules/UploadRun/UploadRunModule";
 import { MetaPlotModule } from "@/modules/MetaPlot/MetaPlotModule";
@@ -48,6 +50,9 @@ function App() {
       {activeModule === "transcription" ? <TranscriptionModule /> : null}
       {activeModule === "translation" ? <TranslationModule /> : null}
       {activeModule === "splicesite" ? <SplicesiteModule /> : null}
+      {isHelpPageId(activeModule) ? (
+        <HelpModule activePage={activeModule} onNavigate={setActiveModule} />
+      ) : null}
     </MainLayout>
   );
 }

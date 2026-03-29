@@ -3,6 +3,7 @@ import clsx from "clsx";
 import {
   Activity,
   BarChart3,
+  CircleHelp,
   ChartSpline,
   ChevronDown,
   Crosshair,
@@ -13,8 +14,12 @@ import {
   Waypoints
 } from "lucide-react";
 import { ConsoleDock } from "@/components/shared/ConsoleDock";
+import { HELP_NAV_CHILDREN } from "@/modules/Help/helpModuleDefinitions";
 import { SITE_NAV_CHILDREN } from "@/modules/SiteProfile/siteModuleDefinitions";
 import { useLogStore } from "@/store/useLogStore";
+
+const brandIconSrc = new URL("../../src-tauri/icons/128x128.png", import.meta.url)
+  .href;
 
 interface NavChildItem {
   id: string;
@@ -25,7 +30,7 @@ interface NavItem {
   id: string;
   label: string;
   icon: typeof Activity;
-  children?: NavChildItem[];
+  children?: readonly NavChildItem[];
 }
 
 const navItems: NavItem[] = [
@@ -58,6 +63,12 @@ const navItems: NavItem[] = [
     label: "Site",
     icon: Crosshair,
     children: SITE_NAV_CHILDREN
+  },
+  {
+    id: "help",
+    label: "Help",
+    icon: CircleHelp,
+    children: HELP_NAV_CHILDREN
   }
 ];
 
@@ -76,7 +87,8 @@ export function MainLayout({
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({
     "gene-statistics": false,
     "exon-statistics": false,
-    site: false
+    site: false,
+    help: false
   });
   const activeItem = useMemo(
     () =>
@@ -103,6 +115,7 @@ export function MainLayout({
     <div className="app-shell">
       <aside className="app-sidebar">
         <div className="app-sidebar__brand">
+          <img className="app-sidebar__brand-icon" src={brandIconSrc} alt="" />
           <span>RNAmeta</span>
         </div>
 

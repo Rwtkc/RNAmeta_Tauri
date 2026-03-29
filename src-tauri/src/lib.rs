@@ -1,5 +1,7 @@
+mod embedded_scripts;
 mod upload_preview;
 
+use embedded_scripts::resolve_embedded_script_path;
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 use std::fs;
@@ -108,6 +110,10 @@ fn resolve_resource_path(app: tauri::AppHandle, relative_path: String) -> Result
     let nested = resource_dir.join("resources").join(&relative_path);
     if nested.exists() {
         return Ok(nested.display().to_string());
+    }
+
+    if let Some(embedded) = resolve_embedded_script_path(&app, &relative_path)? {
+        return Ok(embedded.display().to_string());
     }
 
     Ok(direct.display().to_string())

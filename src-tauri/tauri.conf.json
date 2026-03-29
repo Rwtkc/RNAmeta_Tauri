@@ -30,8 +30,7 @@
     "active": true,
     "targets": "all",
     "resources": [
-      "../r-lang/",
-      "resources/scripts/"
+      "../r-lang/"
     ],
     "icon": [
       "icons/32x32.png",

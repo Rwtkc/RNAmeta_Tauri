@@ -195,12 +195,13 @@ export function PeakExonNumModule() {
 
   async function exportChart() {
     const svgElement = chartRef.current?.querySelector("svg");
-    if (!svgElement) {
+    if (!svgElement || !peakExonNumPayload) {
       return;
     }
 
     try {
       const didExport = await exportPeakExonChart({
+        dataPayload: peakExonNumPayload,
         svgElement,
         exportState,
         dialogTitle: "Export Peak Exon Num",

@@ -1,0 +1,120 @@
+.help-page {
+  gap: 18px;
+}
+
+.help-page__intro-grid,
+.help-page__list-grid {
+  display: grid;
+  gap: 16px;
+}
+
+.help-page__intro-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.help-page__intro-card {
+  min-height: 100%;
+}
+
+.help-page__toc-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.help-page__toc-item {
+  display: grid;
+  gap: 6px;
+  width: 100%;
+  padding: 14px 16px;
+  border: 1px solid var(--app-border);
+  border-radius: 14px;
+  background: var(--app-surface-soft);
+  text-align: left;
+  transition:
+    border-color 160ms ease,
+    background 160ms ease,
+    transform 160ms ease;
+}
+
+.help-page__toc-item strong {
+  font-size: 0.76rem;
+  font-weight: 800;
+  color: var(--app-text);
+}
+
+.help-page__toc-item span {
+  font-size: 0.68rem;
+  line-height: 1.6;
+  color: var(--app-muted);
+}
+
+.help-page__toc-item:hover,
+.help-page__toc-item.is-active {
+  border-color: rgba(201, 132, 104, 0.45);
+  background: rgba(242, 216, 204, 0.5);
+  transform: translateY(-1px);
+}
+
+.help-page__section-stack {
+  display: grid;
+  gap: 18px;
+}
+
+.help-page__section-card {
+  gap: 0;
+}
+
+.help-page__prose {
+  display: grid;
+  gap: 12px;
+}
+
+.help-page__prose p {
+  margin: 0;
+  font-size: 0.76rem;
+  line-height: 1.78;
+  color: var(--app-text);
+}
+
+.help-page__list-grid {
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  margin-top: 18px;
+}
+
+.help-page__list-card {
+  padding: 14px 16px;
+  border: 1px solid var(--app-border);
+  border-radius: 14px;
+  background: rgba(255, 253, 248, 0.72);
+}
+
+.help-page__list-card strong {
+  display: block;
+  margin-bottom: 10px;
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ribo-primary-deep);
+}
+
+.help-page__list-card ul {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 8px;
+}
+
+.help-page__list-card li {
+  font-size: 0.74rem;
+  line-height: 1.62;
+  color: var(--app-text);
+}
+
+@media (max-width: 1080px) {
+  .help-page__intro-grid,
+  .help-page__toc-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

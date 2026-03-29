@@ -6,13 +6,14 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
+    "build:portable": "node scripts/build-portable.cjs",
     "preview": "vite preview",
     "tauri": "tauri",
+    "clean:tauri-scripts": "node scripts/clean-tauri-scripts.cjs",
     "sync:r-runtime": "node scripts/sync-r-runtime.cjs",
-    "sync:tauri-resources": "node scripts/sync-tauri-resources.cjs",
-    "tauri:dev": "pnpm sync:tauri-resources && tauri dev",
-    "tauri:dev:sync": "pnpm sync:r-runtime && pnpm sync:tauri-resources && tauri dev",
-    "tauri:build": "pnpm sync:tauri-resources && tauri build"
+    "tauri:dev": "pnpm clean:tauri-scripts && tauri dev",
+    "tauri:dev:sync": "pnpm sync:r-runtime && pnpm clean:tauri-scripts && tauri dev",
+    "tauri:build": "pnpm sync:r-runtime && pnpm clean:tauri-scripts && tauri build"
   },
   "dependencies": {
     "@fontsource/archivo-black": "^5.2.8",
